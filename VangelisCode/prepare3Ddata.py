@@ -104,11 +104,12 @@ if __name__ == '__main__':
 		count = 0
 		for plane in boundaries:
 			# Line - Plane Intersection point
-			I = getLinePlaneIntersection(line, boundaries[plane])
+			I = getLinePlaneIntersection(line, boundaries[plane], epsilon=1e-50)
 			if I is not None:
 				count =+ 1
 				lengthToBoundary = Point(P[0,:]).distance_to(Point(I))
 				assert lengthToBoundary < math.sqrt(3), "The length is longer than physically allowed!"
+				lengthToBoundaryNorm = lengthToBoundary/math.sqrt(3)
 		assert count < 2, "More than one intersection found! Unphysical!"
 		
 		# In some cased I dont' find intersection. I don't exactly know why but I can just drop these points
