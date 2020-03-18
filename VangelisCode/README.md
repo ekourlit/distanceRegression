@@ -60,5 +60,5 @@ settings = {
 		'Training Sample Size'		:	int(trainX.shape[0]*(1-validation_split))
 }
 ```
-After the model is trained, predictions for a validation dataset (portion of the input dataset from the `.pickle` file) are stored into the `predY` array, which can be easily manipulated in an interactive `python` session. The corresponding truth values array can be acquired by `valY.numpy()`.
+After the model is trained, predictions for a validation dataset (portion of the input dataset from the `.pickle` file) are stored into the `predY` array, which can be easily manipulated in an interactive `python` session. The corresponding truth values array can be acquired by `valY.numpy()`.  
 By adding the argument `--plots` at the script execution few MLP performance evaluation plots are also saved.
