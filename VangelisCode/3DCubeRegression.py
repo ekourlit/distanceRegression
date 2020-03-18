@@ -64,9 +64,10 @@ def getMLP(inputShape, hiddenNodes, fActivation='relu', fOptimizer='adam'):
 
 def printTable(dictionary):
 	string = ""
-	for item in [key+': '+str(dictionary[key])+'\n' for key in dictionary]:
+	# for item in [key+': '+str(dictionary[key])+'\n' for key in dictionary]:
+	for item in [key+': '+str(dictionary[key])+', ' for key in dictionary]:
 		string += item
-	return string
+	return string.rstrip()
 
 def sanityPlots(prediction, truth, details):
 	'''
@@ -85,24 +86,25 @@ def sanityPlots(prediction, truth, details):
 	# create subplot env with shared y axis
 	fig, axs = plt.subplots(1,3)
 
+	# truth length
+	truth_length = truth*math.sqrt(3)
+	axs[0].hist(truth_length, bins=100)
+	axs[0].set(xlabel='Truth L', ylabel='Points')
+	
 	# predicted length
 	pred_length = prediction*math.sqrt(3)
-	axs[0].hist(pred_length, bins=100)
-	axs[0].set(xlabel='Predicted L', ylabel='Points')
-
-	# truth length
-	pred_length = truth*math.sqrt(3)
 	axs[1].hist(pred_length, bins=100)
-	axs[1].set(xlabel='Truth L')
+	axs[1].set(xlabel='Predicted L')
 
 	# error
-	error = (prediction - truth)/math.sqrt(3)
+	error = (truth_length - pred_length)/truth_length
 	abs_error = abs(error)
-	axs[2].hist(error, bins=100)
-	axs[2].set(xlabel='Predicted L - Truth L')
+	axs[2].hist(error, bins=100, log=True)
+	axs[2].set(xlabel='Truth L - Predicted L / Truth L')
 
 	# NN details
-	plt.text(0.6, 0.8, printTable(details), transform = axs[2].transAxes, size=5, bbox=dict(facecolor='white'))
+	fig.suptitle(printTable(details), size='xx-small')
+	# plt.text(0.6, 0.8, printTable(details), transform = axs[2].transAxes, size=5, bbox=dict(facecolor='white'))
 
 	# save
 	now = datetime.now()
@@ -118,17 +120,17 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	# get input/output train and validation data
-	trainX, trainY, valX, valY = getDatasets(args.dataFile, validation_ratio=0.05)
+	trainX, trainY, valX, valY = getDatasets(args.dataFile, validation_ratio=0.1)
 	# validation_split: keep a small portion of the training data blind just to calculate performance during training.
 	validation_split = 0.01
 
 	# define your settings
 	settings = {
-		'Structure' 			: 	[10, 50, 10, 6],
+		'Structure' 			: 	[20, 50, 20, 10],
 		'Optimizer' 			: 	'adam',
 		'Activation' 			: 	'relu',
-		'Batch'					:	500,
-		'Epochs'				:	3,
+		'Batch'					:	64,
+		'Epochs'				:	4,
 		'Training Sample Size'	:	int(trainX.shape[0]*(1-validation_split))
 	}
 
@@ -144,4 +146,5 @@ if __name__ == '__main__':
 
 	# plot
 	if args.plots: sanityPlots(predY, valY.numpy(), settings)
+	
 	print("Done!")
