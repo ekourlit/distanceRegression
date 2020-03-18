@@ -69,7 +69,7 @@ def getLinePlaneIntersection(fLine, fPlane, epsilon=1e-10):
 
 if __name__ == '__main__':
 
-	parser = argparse.ArgumentParser(description='Create a dataset of 3D points, directions and distance to the boundary of a unit cube.')
+	parser = argparse.ArgumentParser(description='Create a dataset of a pair of 3D points (position and direction unit vecor) and the distance to the boundary of a unit cube.')
 	parser.add_argument('--sampleSize', type=int, help='Number of data points.', default=1000)
 	parser.add_argument('--saveFile', help='Save the dataset in a pickle file.', default=False, action='store_true')
 	parser.add_argument('--HDF5', help='Save the dataset in a HDF5 file.', default=False, action='store_true')
