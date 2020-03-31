@@ -1,0 +1,6 @@
+.DS_Store
+*.pickle
+*~
+*.pdf
+._*
+*/plots/
