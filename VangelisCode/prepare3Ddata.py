@@ -56,15 +56,14 @@ def getLinePlaneIntersection(fLine, fPlane, epsilon=1e-10):
 	ndotu = n.dot(u)
 	# there is not an intersection (you can also check if any point of L is contained in P, if yes, discard this datum)
 	if abs(ndotu) < epsilon: return None
-	
 	# otherwise there is an intersection
 	w = line_point - plane_point
 	si = - n.dot(w) / ndotu
 	if si >= 0 : 
 		# Intersection point
 		intersex = w + si * u + plane_point	
-		# the intersection should be within [0-1]
-		if not (np.all(intersex>=0) and np.all(intersex<=1)): return None
+		# the intersection should be within [-0.5, 0.5]
+		if not (np.all(intersex>=-0.5) and np.all(intersex<=0.5)): return None
 		return intersex
 
 if __name__ == '__main__':
@@ -81,25 +80,55 @@ if __name__ == '__main__':
 		if not args.HDF5: dataset = {'i':[], 'X':[], 'Y':[], 'Z':[], 'Xprime':[], 'Yprime':[], 'Zprime':[], 'L':[]}
 		else: hdf = h5py.File(args.filename+'.h5', 'w')
 
-	# create the cube planes
+	# create the cube planes. cube is centered in O(0,0).
 	boundaries = {
-		'base' 	: Plane(Point(0,0,0), Point(1,0,0), Point(0,1,0)),
-		'top' 	: Plane(Point(0,0,1), Point(1,0,1), Point(0,1,1)),
-		'face' 	: Plane(Point(1,0,0), Point(1,1,0), Point(1,0,1)),
-		'back' 	: Plane(Point(0,0,0), Point(0,1,0), Point(0,0,1)),
-		'east' 	: Plane(Point(0,1,0), Point(1,1,0), Point(1,1,1)),
-		'west' 	: Plane(Point(0,0,0), Point(1,0,0), Point(0,0,1))
+		'base' 	: Plane(Point(-0.5,0.5,-0.5), Point(0.5,0.5,-0.5), Point(0.5,-0.5,-0.5)),
+		'top' 	: Plane(Point(-0.5,0.5,-0.5), Point(-0.5,-0.5,0.5), Point(0.5,-0.5,0.5)),
+		'face' 	: Plane(Point(0.5,-0.5,0.5), Point(0.5,-0.5,-0.5), Point(0.5,0.5,-0.5)),
+		'back' 	: Plane(Point(-0.5,0.5,-0.5), Point(-0.5,0.5,0.5), Point(-0.5,-0.5,0.5)),
+		'east' 	: Plane(Point(-0.5,0.5,0.5), Point(-0.5,0.5,-0.5), Point(0.5,0.5,-0.5)),
+		'west' 	: Plane(Point(0.5,-0.5,-0.5), Point(0.5,-0.5,0.5), Point(-0.5,-0.5,0.5))
 	}
+
+	'''
+	Unit cube with origin the O(0,0).
+	'base' 	: Plane(Point(0,0,0), Point(1,0,0), Point(0,1,0)),
+	'top' 	: Plane(Point(0,0,1), Point(1,0,1), Point(0,1,1)),
+	'face' 	: Plane(Point(1,0,0), Point(1,1,0), Point(1,0,1)),
+	'back' 	: Plane(Point(0,0,0), Point(0,1,0), Point(0,0,1)),
+	'east' 	: Plane(Point(0,1,0), Point(1,1,0), Point(1,1,1)),
+	'west' 	: Plane(Point(0,0,0), Point(1,0,0), Point(0,0,1))
+	'''
 
 	for i in tqdm(range(args.sampleSize)):
 		
-		# pair of random 3D points in [0,1)
-		P = np.random.rand(2,3) # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
-		line = Line(Point(P[0,:]), Point(P[1,:]))
+		# sample uniformly a pair of 3D points in [-0.5, 0.5)
+		# points = np.random.uniform(-0.5, 0.5, 6)
+		# points.shape = (2,3)
+		# P = points # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
+		
+		# or sample a pair of custom 3D points
+		x = np.random.uniform(-3820., 3820., 2)
+		y = np.random.uniform(-3820., 3820., 2)
+		z = np.random.uniform(-3521.1, 3521.1, 2)
+		P = np.column_stack((x,y,z)) # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
 
+		line = Line(Point(P[0,:]), Point(P[1,:]))
 		# line direction vector and its unit vector
 		u = getLineDirection(line)
 		u_hat = u/np.linalg.norm(u)
+
+		# if args.saveFile:
+		# 	if not args.HDF5:
+		# 		# save to dataset dictionary for pickling
+		# 		dataset['i'].append(i)
+		# 		dataset['X'].append(P[0,0])
+		# 		dataset['Y'].append(P[0,1])
+		# 		dataset['Z'].append(P[0,2])
+		# 		dataset['Xprime'].append(u_hat[0])
+		# 		dataset['Yprime'].append(u_hat[1])
+		# 		dataset['Zprime'].append(u_hat[2])
+		# 		dataset['L'].append(-1)
 
 		count = 0
 		for plane in boundaries:
@@ -136,7 +165,7 @@ if __name__ == '__main__':
 
 	if args.saveFile:
 		if not args.HDF5: 
-			with open(args.filename+'.pickle', 'wb') as f: pickle.dump(dataset, f)
+			with open('/data/+'args.filename+'.pickle', 'wb') as f: pickle.dump(dataset, f)
 			print("\nFile %s saved!" % (args.filename+'.pickle'))
 		else:
 			hdf.close()

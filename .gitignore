@@ -1,6 +1,8 @@
 .DS_Store
 *.pickle
+*.hdf5
 *~
 *.pdf
 ._*
 */plots/
+*/data/
