@@ -75,9 +75,12 @@ if __name__ == '__main__':
 	parser.add_argument('--filename', help='Pickle file name.', default="3Ddata")
 	args = parser.parse_args()
 
+	# create data dir
+	system('mkdir -p data')
+
 	# outputs
 	if not args.HDF5: dataset = {'i':[], 'X':[], 'Y':[], 'Z':[], 'Xprime':[], 'Yprime':[], 'Zprime':[], 'L':[]}
-	else: hdf = h5py.File(args.filename+'.h5', 'w')
+	else: hdf = h5py.File('data/'+args.filename+'.h5', 'w')
 
 	shift = -0.5
 	# Unit centered at (0.5+shift,0.5+shift,0.5+shift).
