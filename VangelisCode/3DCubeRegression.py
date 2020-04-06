@@ -10,51 +10,6 @@ import h5py,csv,pickle
 from datetime import date,datetime
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
 
-#tf.data API WIP
-def pack(features, length):
-	'''
-	pack together tf.data.Dataset columns and normalise length
-	generally data preprocessing can be added here
-	'''
-	return tf.stack(list(features.values()), axis=-1), length/normalisation
-
-#tf.data API WIP
-def consumeCSV(path, **kwards):
-	'''
-	create tf.data.dataset by mapping on a tf.data.dataset containing file paths
-	generally data preprocessing can be added here
-	# try to use tf.io.decode_csv
-	'''
-	scv_columns = ['X','Y','Z','Xprime','Yprime','Zprime','L']
-	return tf.data.experimental.make_csv_dataset(path, batch_size=int(1e10), column_names=scv_columns, label_name=scv_columns[-1], num_epochs=1)
-
-#tf.data API WIP
-def consumePickle(path):
-	'''
-	similar to consumeCSV
-	'''
-	file = open(path.numpy(),'rb')
-	data_dict = pickle.load(file)
-	columns = len(data_dict.keys())
-	firstColumn = next(iter(data_dict))
-	entries = len(data_dict[firstColumn])
-	dataset = tf.data.Dataset.from_tensor_slices(data_dict)
-	return dataset, entries, columns
-
-#tf.data API WIP
-def tf_consumePickle(path):
-	'''
-	the tf function that feed into the map
-	'''
-	# path_shape = path.shape
-	# [path,] = tf.py_function(func=consumePickle, inp=[path], Tout=[tf.float32])
-	# path.set_shape(path_shape)
-	# return path
-	dataset, entries, columns = tf.py_function(func=consumePickle, inp=[path], Tout=[tf.float32, tf.int32, tf.int32])
-	for example in dataset: break
-	pdb.set_trace()
-	return dataset
-
 def getG4Datasets(G4FilePath):
 	'''
 	Construct the test datasets generated from Geant4.
@@ -93,17 +48,6 @@ def getG4Datasets(G4FilePath):
 
 		return test_data_input, test_data_output
 
-		# using tf.data API WIP
-		# if '*' in G4FilePath:
-		# 	file_list = tf.data.Dataset.list_files(G4FilePath)
-		# 	dataset = file_list.map(consumeCSV)
-
-		# scv_columns = ['X','Y','Z','Xprime','Yprime','Zprime','L']
-		# # as these data are used only for inference at the moment, the batch_size can be arbitary large and num_epochs = 1
-		# dataset = tf.data.experimental.make_csv_dataset(G4FilePath, batch_size=int(1e10), column_names=scv_columns, label_name=scv_columns[-1], num_epochs=1)
-		# packed_dataset = dataset.map(pack)
-		# return packed_dataset
-
 def getDatasets(pickleFile, validation_ratio=0.2):
 	'''
 	Construct the training and validation datasets.
@@ -112,13 +56,6 @@ def getDatasets(pickleFile, validation_ratio=0.2):
 		validation_ratio: portion of the data that comprise the validation dataset
 	return
 		train_data_input, train_data_output, validation_data_input, validation_data_output: 4 x tf.Tensor. Input shape (0,6), output shape (0,1).
-	'''
-
-	'''
-	# tf.data API for parallel mutiple file loading WIP
-	if '*' in pickleFile:
-		file_list = tf.data.Dataset.list_files(pickleFile)
-		dataset = file_list.map(tf_consumePickle)
 	'''
 
 	# load data
@@ -153,7 +90,6 @@ def getMLP(inputShape, hiddenNodes, fActivation='relu', fOptimizer='adam', fOutp
 	model.add(tf.keras.layers.Dense(hiddenNodes[0], input_shape=(inputShape,), activation=fActivation))
 	for layer in range(1, len(hiddenNodes)):
 		model.add(tf.keras.layers.Dense(hiddenNodes[layer], activation=fActivation))
-	# I don't understand why I need to put linear and not relu
 	model.add(tf.keras.layers.Dense(1, activation=fOutputActivation))
 
 	# compile
@@ -179,7 +115,6 @@ def perfPlots(prediction, truth, details, savename='results'):
 		truth: the truth np.array
 	'''
 	print("Hi from Plotter!")
-	# plt.clf()
 
 	# create dir
 	today = date.today()
@@ -420,7 +355,6 @@ if __name__ == '__main__':
 	# prepare G4 dataset
 	if args.G4Dataset is not None:
 		g4X, g4Y = getG4Datasets(args.G4Dataset)
-		# g4_data = getG4Datasets(args.G4Dataset) #tf.data API WIP
 
 		# predict on G4 data
 		print("Calculating predictions for %i points..." % len(g4X))
