@@ -34,7 +34,7 @@ Generate the dataset using the scripts `prepare<N>Ddata.py`, where `<N>` is eith
 ```bash
 python prepare3Ddata.py --saveFile 
 ```
-The above command saves a file called `3Ddata.pickle` with structure:
+The above command saves a file called `3Ddata.pickle` in the `data` directory and with structure:
 ```
              i         X         Y         Z    Xprime    Yprime    Zprime         L
 0            0  0.900101  0.324281  0.274795 -0.441440  0.342839  0.829212  0.874571
@@ -47,18 +47,25 @@ The above command saves a file called `3Ddata.pickle` with structure:
 
 Use the dataset to train an MLP regression algorithm. For the 3D cube case and the example dataset generated above:
 ```bash
-python -i 3DCubeRegression.py --dataFile 3Ddata.pickle
+python -i 3DCubeRegression.py --myDataset data/3Ddata.pickle
 ```
 A lot of the MLP configuration can be set at the `settings` dictionary inside the script. For example:
 ```python
 settings = {
-		'Structure' 			: 	[10, 50, 10, 6],
-		'Optimizer' 			: 	'adam',
-		'Activation' 			: 	'relu',
-		'Batch'				:	100,
-		'Epochs'			:	3,
-		'Training Sample Size'		:	int(trainX.shape[0]*(1-validation_split))
+		'Structure'				:	[1024, 1024],
+		'Optimizer'				:	'adam',
+		'Activation'			:	'relu',
+		'OutputActivation'		:	'sigmoid',
+		'Loss'					:	'mse',
+		'Batch'					:	128,
+		'Epochs'				:	50,
+		'Training Sample Size'	:	int(trainX.shape[0]*(1-validation_split))
 }
 ```
-After the model is trained, predictions for a validation dataset (portion of the input dataset from the `.pickle` file) are stored into the `predY` array, which can be easily manipulated in an interactive `python` session. The corresponding truth values array can be acquired by `valY.numpy()`.  
-By adding the argument `--plots` at the script execution few MLP performance evaluation plots are also saved.
+After the model is trained, it is saved into the `data` directory with a timestamp appended to the name, for example, `mlp_model_202004011747`. On a later time, the pre-trained model can be loaded by adding the argument `--model` on the above command:
+```bash
+python -i 3DCubeRegression.py --myDataset data/3Ddata.pickle --model data/mlp_model_202004011747
+```
+Predictions for the validation dataset -- portion of the input dataset from the `.pickle` file -- are stored into the `predY` array, which can be easily manipulated in an interactive `python` session. The corresponding truth values array can be acquired by `valY.numpy()`. Additionally, the user can feed a test dataset to evaluate the performance of the network by adding the argument `--G4Dataset`. The results of the test dataset are saved to the `pred_g4Y` array while the truth values into the `g4Y.numpy()`.
+
+By adding the argument `--plots` at the script execution timestamped performance evaluation plots are also saved into the `plots` directory.
