@@ -62,8 +62,8 @@ def getLinePlaneIntersection(fLine, fPlane, epsilon=1e-10):
 	if si >= 0 : 
 		# Intersection point
 		intersex = w + si * u + plane_point	
-		# the intersection should be within [-0.5, 0.5]
-		if not (np.all(intersex>=-0.5) and np.all(intersex<=0.5)): return None
+		# the intersection should be within [shift, 1+shift)
+		if not (np.all(intersex>=shift) and np.all(intersex<=1+shift)): return None
 		return intersex
 
 if __name__ == '__main__':
@@ -76,59 +76,37 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	# outputs
-	if args.saveFile:
-		if not args.HDF5: dataset = {'i':[], 'X':[], 'Y':[], 'Z':[], 'Xprime':[], 'Yprime':[], 'Zprime':[], 'L':[]}
-		else: hdf = h5py.File(args.filename+'.h5', 'w')
+	if not args.HDF5: dataset = {'i':[], 'X':[], 'Y':[], 'Z':[], 'Xprime':[], 'Yprime':[], 'Zprime':[], 'L':[]}
+	else: hdf = h5py.File(args.filename+'.h5', 'w')
 
-	# create the cube planes. cube is centered in O(0,0).
+	shift = -0.5
+	# Unit centered at (0.5+shift,0.5+shift,0.5+shift).
 	boundaries = {
-		'base' 	: Plane(Point(-0.5,0.5,-0.5), Point(0.5,0.5,-0.5), Point(0.5,-0.5,-0.5)),
-		'top' 	: Plane(Point(-0.5,0.5,-0.5), Point(-0.5,-0.5,0.5), Point(0.5,-0.5,0.5)),
-		'face' 	: Plane(Point(0.5,-0.5,0.5), Point(0.5,-0.5,-0.5), Point(0.5,0.5,-0.5)),
-		'back' 	: Plane(Point(-0.5,0.5,-0.5), Point(-0.5,0.5,0.5), Point(-0.5,-0.5,0.5)),
-		'east' 	: Plane(Point(-0.5,0.5,0.5), Point(-0.5,0.5,-0.5), Point(0.5,0.5,-0.5)),
-		'west' 	: Plane(Point(0.5,-0.5,-0.5), Point(0.5,-0.5,0.5), Point(-0.5,-0.5,0.5))
+		'base' 	: Plane(Point(0+shift,0+shift,0+shift), Point(1+shift,0+shift,0+shift), Point(0+shift,1+shift,0+shift)),
+		'top' 	: Plane(Point(0+shift,0+shift,1+shift), Point(1+shift,0+shift,1+shift), Point(0+shift,1+shift,1+shift)),
+		'face' 	: Plane(Point(1+shift,0+shift,0+shift), Point(1+shift,1+shift,0+shift), Point(1+shift,0+shift,1+shift)),
+		'back' 	: Plane(Point(0+shift,0+shift,0+shift), Point(0+shift,1+shift,0+shift), Point(0+shift,0+shift,1+shift)),
+		'east' 	: Plane(Point(0+shift,1+shift,0+shift), Point(1+shift,1+shift,0+shift), Point(1+shift,1+shift,1+shift)),
+		'west' 	: Plane(Point(0+shift,0+shift,0+shift), Point(1+shift,0+shift,0+shift), Point(0+shift,0+shift,1+shift))
 	}
-
-	'''
-	Unit cube with origin the O(0,0).
-	'base' 	: Plane(Point(0,0,0), Point(1,0,0), Point(0,1,0)),
-	'top' 	: Plane(Point(0,0,1), Point(1,0,1), Point(0,1,1)),
-	'face' 	: Plane(Point(1,0,0), Point(1,1,0), Point(1,0,1)),
-	'back' 	: Plane(Point(0,0,0), Point(0,1,0), Point(0,0,1)),
-	'east' 	: Plane(Point(0,1,0), Point(1,1,0), Point(1,1,1)),
-	'west' 	: Plane(Point(0,0,0), Point(1,0,0), Point(0,0,1))
-	'''
 
 	for i in tqdm(range(args.sampleSize)):
 		
-		# sample uniformly a pair of 3D points in [-0.5, 0.5)
-		# points = np.random.uniform(-0.5, 0.5, 6)
-		# points.shape = (2,3)
-		# P = points # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
+		# sample uniformly a pair of 3D points in [shift, 1+shift)
+		points = np.random.uniform(shift, 1+shift, 6)
+		points.shape = (2,3)
+		P = points # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
 		
 		# or sample a pair of custom 3D points
-		x = np.random.uniform(-3820., 3820., 2)
-		y = np.random.uniform(-3820., 3820., 2)
-		z = np.random.uniform(-3521.1, 3521.1, 2)
-		P = np.column_stack((x,y,z)) # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
+		# x = np.random.uniform(-3820., 3820., 2)
+		# y = np.random.uniform(-3820., 3820., 2)
+		# z = np.random.uniform(-3521.1, 3521.1, 2)
+		# P = np.column_stack((x,y,z)) # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
 
 		line = Line(Point(P[0,:]), Point(P[1,:]))
 		# line direction vector and its unit vector
 		u = getLineDirection(line)
 		u_hat = u/np.linalg.norm(u)
-
-		# if args.saveFile:
-		# 	if not args.HDF5:
-		# 		# save to dataset dictionary for pickling
-		# 		dataset['i'].append(i)
-		# 		dataset['X'].append(P[0,0])
-		# 		dataset['Y'].append(P[0,1])
-		# 		dataset['Z'].append(P[0,2])
-		# 		dataset['Xprime'].append(u_hat[0])
-		# 		dataset['Yprime'].append(u_hat[1])
-		# 		dataset['Zprime'].append(u_hat[2])
-		# 		dataset['L'].append(-1)
 
 		count = 0
 		for plane in boundaries:
@@ -146,27 +124,31 @@ if __name__ == '__main__':
 			# print some data
 			# if (i % (args.sampleSize/10) == 0): print("i: %i, X: %f, Y: %f, Z: %f, Xprime: %f, Yprime: %f, Zprime: %f, L: %f" % (i, P[0,0], P[0,1], P[0,2], u_hat[0], u_hat[1], u_hat[2], lengthToBoundary))
 
-			if args.saveFile:
-				if not args.HDF5:
-					# save to dataset dictionary for pickling
-					dataset['i'].append(i)
-					dataset['X'].append(P[0,0])
-					dataset['Y'].append(P[0,1])
-					dataset['Z'].append(P[0,2])
-					dataset['Xprime'].append(u_hat[0])
-					dataset['Yprime'].append(u_hat[1])
-					dataset['Zprime'].append(u_hat[2])
-					dataset['L'].append(lengthToBoundary)
-				else:
-					group = hdf.create_group('point'+str(i))
-					group.create_dataset('position', data=P[0,:], compression='gzip')
-					group.create_dataset('direction', data=u_hat, compression='gzip')
-					group.create_dataset('length', data=np.array([lengthToBoundary]), compression='gzip')
+			if not args.HDF5:
+				# save to dataset dictionary for pickling
+				dataset['i'].append(i)
+				dataset['X'].append(P[0,0])
+				dataset['Y'].append(P[0,1])
+				dataset['Z'].append(P[0,2])
+				dataset['Xprime'].append(u_hat[0])
+				dataset['Yprime'].append(u_hat[1])
+				dataset['Zprime'].append(u_hat[2])
+				dataset['L'].append(lengthToBoundary)
+			else:
+				group = hdf.create_group('point'+str(i))
+				group.create_dataset('position', data=P[0,:], compression='gzip')
+				group.create_dataset('direction', data=u_hat, compression='gzip')
+				group.create_dataset('length', data=np.array([lengthToBoundary]), compression='gzip')
 
 	if args.saveFile:
 		if not args.HDF5: 
-			with open('/data/+'args.filename+'.pickle', 'wb') as f: pickle.dump(dataset, f)
+			with open('data/'+args.filename+'.pickle', 'wb') as f: pickle.dump(dataset, f)
 			print("\nFile %s saved!" % (args.filename+'.pickle'))
 		else:
 			hdf.close()
 			print("\nFile %s saved!" % (args.filename+'.h5'))
+
+	# plot some shit
+	from matplotlib import pyplot as plt
+	plt.hist(np.array(dataset['L']), bins=100, range=(0,2))
+	plt.savefig('distance.pdf')
