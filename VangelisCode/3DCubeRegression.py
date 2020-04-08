@@ -22,9 +22,9 @@ def getG4Datasets(G4FilePath):
 	if '.hdf5' in G4FilePath:
 		file = h5py.File(G4FilePath,'r')
 		
-		X = np.array(file['default_ntuples']['B4']['x']['pages'])
-		Y = np.array(file['default_ntuples']['B4']['y']['pages'])
-		Z = np.array(file['default_ntuples']['B4']['z']['pages'])
+		X = np.array(file['default_ntuples']['B4']['x']['pages'])/0.5 # convert these to -1 - 1 range
+		Y = np.array(file['default_ntuples']['B4']['y']['pages'])/0.5 # convert these to -1 - 1 range
+		Z = np.array(file['default_ntuples']['B4']['z']['pages'])/0.5 # convert these to -1 - 1 range
 		Xprime = np.array(file['default_ntuples']['B4']['dx']['pages'])
 		Yprime = np.array(file['default_ntuples']['B4']['dy']['pages'])
 		Zprime = np.array(file['default_ntuples']['B4']['dz']['pages'])
@@ -64,7 +64,12 @@ def getDatasets(pickleFile, validation_ratio=0.2):
 	split_index = int(len(dataset) * (1 - validation_ratio))
 	train_data = dataset.head(split_index)
 	validation_data = dataset.tail(len(dataset) - split_index)
-	
+
+	# convert X, Y, Z from -0.5 - 0.5 to -1 - 1
+	# these lines spit a warning but it still works fine
+	train_data[['X','Y','Z']] = train_data[['X','Y','Z']].apply(lambda x: x/0.5)
+	validation_data[['X','Y','Z']] = validation_data[['X','Y','Z']].apply(lambda x: x/0.5)
+
 	# convert DataFrame to tf.Tensor
 	train_data_input = tf.convert_to_tensor(train_data[['X','Y','Z','Xprime','Yprime','Zprime']].values)
 	validation_data_input = tf.convert_to_tensor(validation_data[['X','Y','Z','Xprime','Yprime','Zprime']].values)
@@ -136,12 +141,14 @@ def perfPlots(prediction, truth, details, savename='results'):
 	axs[1].set(xlabel='Predicted L')
 
 	# error
-	error = np.divide(truth_length - pred_length, truth_length, out=np.zeros_like(truth_length - pred_length), where=truth_length!=0)
+	# error = np.divide(truth_length - pred_length, truth_length, out=np.zeros_like(truth_length - pred_length), where=truth_length!=0)
+	error = truth_length - pred_length
 	abs_error = abs(error)
 	axs[2].hist(error, bins=100, log=True, range=(-1,1))
 	axis = plt.gca()
 	axis.minorticks_on()
-	axs[2].set(xlabel='Truth L - Predicted L / Truth L')
+	# axs[2].set(xlabel='Truth L - Predicted L / Truth L')
+	axs[2].set(xlabel='Truth L - Predicted L')
 
 	# NN details
 	fig.suptitle(printTable(details), size='xx-small')
