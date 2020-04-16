@@ -1,5 +1,6 @@
 import os,pdb,argparse
 import tensorflow as tf
+import mlflow.keras
 import pandas as pd
 import numpy as np
 import math
@@ -8,6 +9,7 @@ from matplotlib import pyplot as plt
 from os import system
 import h5py,csv,pickle
 from datetime import date,datetime
+from tensorflow.keras.optimizers import *
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
 
 def getG4Datasets(G4FilePath):
@@ -40,10 +42,13 @@ def getG4Datasets(G4FilePath):
 	elif '.csv' in G4FilePath:
 
 		data = np.loadtxt(G4FilePath, delimiter=',')
+
 		L = (data[:,6]/normalisation).reshape(data[:,6].size,1)
 		assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
-
-		test_data_input = tf.convert_to_tensor(data[:,:6])
+		# convert X, Y, Z from -0.5 - 0.5 to -1 - 1 and concatenate with X', Y', Z'
+		inputs = np.concatenate((data[:,:3]/0.5, data[:,3:6]), axis=1)
+		
+		test_data_input = tf.convert_to_tensor(inputs)
 		test_data_output = tf.convert_to_tensor(L)
 
 		return test_data_input, test_data_output
@@ -66,7 +71,7 @@ def getDatasets(pickleFile, validation_ratio=0.2):
 	validation_data = dataset.tail(len(dataset) - split_index)
 
 	# convert X, Y, Z from -0.5 - 0.5 to -1 - 1
-	# these lines spit a warning but it still works fine
+	# these lines might spit a warning but it still works fine
 	train_data[['X','Y','Z']] = train_data[['X','Y','Z']].apply(lambda x: x/0.5)
 	validation_data[['X','Y','Z']] = validation_data[['X','Y','Z']].apply(lambda x: x/0.5)
 
@@ -92,9 +97,9 @@ def getMLP(inputShape, hiddenNodes, fActivation='relu', fOptimizer='adam', fOutp
 	
 	# construct
 	model = tf.keras.Sequential()
-	model.add(tf.keras.layers.Dense(hiddenNodes[0], input_shape=(inputShape,), activation=fActivation))
+	model.add(tf.keras.layers.Dense(hiddenNodes[0], input_shape=(inputShape,), activation=fActivation, kernel_initializer='he_uniform'))
 	for layer in range(1, len(hiddenNodes)):
-		model.add(tf.keras.layers.Dense(hiddenNodes[layer], activation=fActivation))
+		model.add(tf.keras.layers.Dense(hiddenNodes[layer], activation=fActivation, kernel_initializer='he_uniform'))
 	model.add(tf.keras.layers.Dense(1, activation=fOutputActivation))
 
 	# compile
@@ -123,7 +128,7 @@ def perfPlots(prediction, truth, details, savename='results'):
 
 	# create dir
 	today = date.today()
-	saveDir = 'plots/'+str(today)
+	saveDir = 'plots/'+str(today)+'/'+timestamp
 	system('mkdir -p '+saveDir)
 
 	# create subplot env with shared y axis
@@ -181,17 +186,28 @@ def perfPlots(prediction, truth, details, savename='results'):
 	plt.savefig(saveDir+'/'+savename+'_scatt_'+timestamp+'.png')
 	print(savename+'_scatt_'+timestamp+".pdf Saved!")
 
-	# hist2d
+	# hist2d Truth vs Predicted
 	plt.clf()
-	plt.hist2d(truth_length.reshape(len(truth_length),), pred_length.reshape(len(pred_length),), bins=(300,300), norm=mpl.colors.LogNorm())
+	plt.hist2d(truth_length.reshape(len(truth_length),), pred_length.reshape(len(pred_length),), bins=(200,200), norm=mpl.colors.LogNorm())
 	plt.grid()
 	axis = plt.gca()
 	axis.set_xlabel('Truth L')
 	axis.set_ylabel('Predicted L')
 	# save
 	plt.tight_layout()
-	plt.savefig(saveDir+'/'+savename+'_hist2d_'+timestamp+'.pdf')
-	print(savename+'_hist2d_'+timestamp+".pdf Saved!")
+	plt.savefig(saveDir+'/'+savename+'_truthVSpred_'+timestamp+'.pdf')
+	print(savename+'_truthVSpred_'+timestamp+".pdf Saved!")
+
+	# hist2d Error vs Truth
+	plt.clf()
+	plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(50,50), range=[[0, 2], [-0.5, 0.5]],  norm=mpl.colors.LogNorm())
+	axis = plt.gca()
+	axis.set_xlabel('Truth L')
+	axis.set_ylabel('Truth L - Predicted L')
+	# save
+	plt.tight_layout()
+	plt.savefig(saveDir+'/'+savename+'_truthVSerror_'+timestamp+'.pdf')
+	print(savename+'_truthVSerror_'+timestamp+".pdf Saved!")
 
 def combPerfPlots(Vprediction, Vtruth, Tprediction=None, Ttruth=None, savename='pred_error'):
 	'''
@@ -205,7 +221,7 @@ def combPerfPlots(Vprediction, Vtruth, Tprediction=None, Ttruth=None, savename='
 
 	# create dir
 	today = date.today()
-	saveDir = 'plots/'+str(today)
+	saveDir = 'plots/'+str(today)+'/'+timestamp
 	system('mkdir -p '+saveDir)
 
 	if (Tprediction is not None) and (Ttruth is not None): combined = True
@@ -255,7 +271,7 @@ def inputPlots(inputs, savename='inputs'):
 
 	# create dir
 	today = date.today()
-	saveDir = 'plots/'+str(today)
+	saveDir = 'plots/'+str(today)+'/'+timestamp
 	system('mkdir -p '+saveDir)
 
 	# create subplot env with shared y axis
@@ -298,13 +314,20 @@ def inputPlots(inputs, savename='inputs'):
 	plt.savefig(saveDir+'/'+savename+'.pdf')
 	print(savename+".pdf Saved!")
 
+# enable MLflow autologging XLA
+mlflow.keras.autolog()
+
+# define the input arguments
+parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
+parser.add_argument('--myDataset', help='Pickle file of the dataset.', required=True)
+parser.add_argument('--G4Dataset', help='Import Geant4 generated dataset (HDF5 or CSV format).', default=None)
+parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
+parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None)
+parser.add_argument('--test', help='Model testing environment. Do not save.', default=False, action='store_true')
+
 if __name__ == '__main__':
 
-	parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
-	parser.add_argument('--myDataset', help='Pickle file of the dataset.', required=True)
-	parser.add_argument('--G4Dataset', help='Import Geant4 generated dataset (HDF5 or CSV format).', default=None)
-	parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
-	parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None)
+	# parse the arguments
 	args = parser.parse_args()
 
 	# set cube length normalisation.
@@ -318,23 +341,31 @@ if __name__ == '__main__':
 	# define your settings
 	# todo: I need to somehow read these when I load the model
 	settings = {
-		'Structure'				:	[1024, 1024],
-		'Optimizer'				:	'adam',
+		'Structure'				:	[512,1024],
+		'Optimizer'				:	Adam(learning_rate=0.005),
 		'Activation'			:	'relu',
 		'OutputActivation'		:	'sigmoid',
 		'Loss'					:	'mse',
-		'Batch'					:	128,
-		'Epochs'				:	50,
+		'Batch'					:	32,
+		'Epochs'				:	40,
 		'Training Sample Size'	:	int(trainX.shape[0]*(1-validation_split))
 	}
 
 	# create MLP model
 	if args.model is None:
-		mlp_model = getMLP(inputShape=trainX.shape[1], hiddenNodes=settings['Structure'], fActivation=settings['Activation'], fOptimizer=settings['Optimizer'], fOutputActivation=settings['OutputActivation'], fLoss=settings['Loss'])
+		mlp_model = getMLP(inputShape=trainX.shape[1],
+						   hiddenNodes=settings['Structure'],
+						   fActivation=settings['Activation'],
+						   fOptimizer=settings['Optimizer'],
+						   fOutputActivation=settings['OutputActivation'],
+						   fLoss=settings['Loss'])
+
 		# print model summary
 		mlp_model.summary()
 		# fit model
 		history = mlp_model.fit(trainX, trainY, epochs=settings['Epochs'], batch_size=settings['Batch'], validation_split=validation_split)
+		# save model
+		if not args.test: mlp_model.save('data/mlp_model_'+timestamp)
 
 		# Plot training & validation loss values
 		plt.plot(history.history['loss'])
@@ -343,9 +374,8 @@ if __name__ == '__main__':
 		plt.xlabel('Epoch')
 		plt.legend(['Train', 'Validation'], loc='upper right')
 		today = str(date.today())
-		system('mkdir -p plots/'+today)
-		plt.savefig('plots/'+today+'/learning_'+timestamp+'.pdf')
-		mlp_model.save('data/mlp_model_'+timestamp)
+		system('mkdir -p plots/'+today+'/'+timestamp)
+		if not args.test: plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
 
 	# load MLP model
 	else:
@@ -370,10 +400,10 @@ if __name__ == '__main__':
 	# plot
 	if args.plots: 
 		perfPlots(prediction=pred_valY, truth=valY.numpy(), details=settings, savename='resultsVal')
-		inputPlots(valX.numpy(), savename='inputsVal')
+		# inputPlots(valX.numpy(), savename='inputsVal')
 		if args.G4Dataset is not None: 
 			perfPlots(prediction=pred_g4Y, truth=g4Y.numpy(), details=settings, savename='resultsG4')
-			inputPlots(g4X.numpy(), savename='inputsG4')
+			# inputPlots(g4X.numpy(), savename='inputsG4')
 		
 		# combined plots
 		if args.G4Dataset is not None: combPerfPlots(Vprediction=pred_valY, Vtruth=valY.numpy(), Tprediction=pred_g4Y, Ttruth=g4Y.numpy())
