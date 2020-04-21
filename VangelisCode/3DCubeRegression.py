@@ -10,25 +10,16 @@ import h5py,csv,pickle
 from datetime import date,datetime
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
 
-#tf.data API WIP
-def pack(features, length):
-	'''
-	pack together tf.data.Dataset columns and normalise length
-	generally data preprocessing can be added here
-	'''
-	return tf.stack(list(features.values()), axis=-1), length/normalisation
-
-#tf.data API WIP
-def consumeCSV(path, **kwards):
+# tf.data API WIP
+# that's a great function but it still experimental and doesn't work with AutoGraph (not convertible)
+def consumeCSV(path):
 	'''
 	create tf.data.dataset by mapping on a tf.data.dataset containing file paths
-	generally data preprocessing can be added here
-	# try to use tf.io.decode_csv
 	'''
 	scv_columns = ['X','Y','Z','Xprime','Yprime','Zprime','L']
-	return tf.data.experimental.make_csv_dataset(path, batch_size=int(1e10), column_names=scv_columns, label_name=scv_columns[-1], num_epochs=1)
+	return tf.data.experimental.make_csv_dataset(path, batch_size=1, column_names=scv_columns, label_name=scv_columns[-1], num_epochs=1)
 
-#tf.data API WIP
+# tf.data API WIP
 def consumePickle(path):
 	'''
 	similar to consumeCSV
@@ -41,7 +32,7 @@ def consumePickle(path):
 	dataset = tf.data.Dataset.from_tensor_slices(data_dict)
 	return dataset, entries, columns
 
-#tf.data API WIP
+# tf.data API WIP
 def tf_consumePickle(path):
 	'''
 	the tf function that feed into the map
@@ -55,7 +46,24 @@ def tf_consumePickle(path):
 	pdb.set_trace()
 	return dataset
 
-def getG4Datasets(G4FilePath):
+def process_csv_line(line):
+	'''
+	Process each csv line of the dataset.
+	Data preprocessing can be done nere.
+	'''
+	# parse csv line
+	fields = tf.io.decode_csv(line, [tf.constant([np.nan], dtype=tf.float32)] * 7)
+	# first 3 fields are X,Y,Z. normalize them
+	position = tf.stack(fields[:3])/0.5
+	# next 3 fields are Xprime,Yprime,Zprime
+	momentum = tf.stack(fields[3:-1])
+	# stack and flatten them
+	features = tf.reshape(tf.stack([position,momentum]), [-1])
+	# last field is the length. normalize it.
+	length = tf.stack(fields[-1:])/normalisation
+	return features, length
+
+def getG4Datasets(G4FilePath, batch_size=32):
 	'''
 	Construct the test datasets generated from Geant4.
 	arguments
@@ -82,27 +90,35 @@ def getG4Datasets(G4FilePath):
 
 		return test_data_input, test_data_output
 
-	elif '.csv' in G4FilePath:
+	# csv input
+	else:
 
-		data = np.loadtxt(G4FilePath, delimiter=',')
-		L = (data[:,6]/normalisation).reshape(data[:,6].size,1)
-		assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
+		# data = np.loadtxt(G4FilePath, delimiter=',')
+		# L = (data[:,6]/normalisation).reshape(data[:,6].size,1)
+		# assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
 
-		test_data_input = tf.convert_to_tensor(data[:,:6])
-		test_data_output = tf.convert_to_tensor(L)
+		# test_data_input = tf.convert_to_tensor(data[:,:6])
+		# test_data_output = tf.convert_to_tensor(L)
 
-		return test_data_input, test_data_output
+		# return test_data_input, test_data_output
 
 		# using tf.data API WIP
-		# if '*' in G4FilePath:
-		# 	file_list = tf.data.Dataset.list_files(G4FilePath)
-		# 	dataset = file_list.map(consumeCSV)
+		if '*' in G4FilePath:
+			# create a file list dataset
+			file_list = tf.data.Dataset.list_files(G4FilePath)
+			# create TextLineDatasets (lines) from the above list
+			dataset = file_list.interleave(
+				lambda path: tf.data.TextLineDataset(path),
+				cycle_length=1,
+				block_length=1)
+			# parse & process csv line
+			dataset = dataset.map(process_csv_line)
+			dataset = dataset.batch(batch_size)
 
-		# scv_columns = ['X','Y','Z','Xprime','Yprime','Zprime','L']
-		# # as these data are used only for inference at the moment, the batch_size can be arbitary large and num_epochs = 1
-		# dataset = tf.data.experimental.make_csv_dataset(G4FilePath, batch_size=int(1e10), column_names=scv_columns, label_name=scv_columns[-1], num_epochs=1)
-		# packed_dataset = dataset.map(pack)
-		# return packed_dataset
+			test_data_input = dataset.map(lambda X, Y: X)
+			test_data_output = dataset.map(lambda X, Y: Y)
+			
+			return test_data_input, test_data_output
 
 def getDatasets(pickleFile, validation_ratio=0.2):
 	'''
@@ -359,8 +375,8 @@ def inputPlots(inputs, savename='inputs'):
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
-	parser.add_argument('--myDataset', help='Pickle file of the dataset.', required=True)
-	parser.add_argument('--G4Dataset', help='Import Geant4 generated dataset (HDF5 or CSV format).', default=None)
+	parser.add_argument('--myDataset', help='Pickle file of the dataset.', required=False)
+	parser.add_argument('--G4Dataset', help='Import Geant4 generated dataset (HDF5 or CSV format).', default=None, type=str)
 	parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
 	parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None)
 	args = parser.parse_args()
@@ -374,7 +390,7 @@ if __name__ == '__main__':
 	validation_split = 0.05
 
 	# define your settings
-	# todo: I need to somehow read these when I load the model
+	# todo: I need to somehow read these when I load the model. maybe I don't need this by the time I timestamp the model. better write out in a log file
 	settings = {
 		'Structure'				:	[1024, 1024],
 		'Optimizer'				:	'adam',
@@ -416,15 +432,15 @@ if __name__ == '__main__':
 	# predict on validation data
 	print("Calculating predictions for %i points..." % len(valX))
 	pred_valY = mlp_model.predict(valX)
-	
+
 	# prepare G4 dataset
 	if args.G4Dataset is not None:
-		g4X, g4Y = getG4Datasets(args.G4Dataset)
-		# g4_data = getG4Datasets(args.G4Dataset) #tf.data API WIP
-
+		g4X, g4Y = getG4Datasets(args.G4Dataset, batch_size=1024)
+		pdb.set_trace()
 		# predict on G4 data
-		print("Calculating predictions for %i points..." % len(g4X))
+		# print("Calculating predictions for %i points..." % len(g4X))
 		pred_g4Y = mlp_model.predict(g4X)
+		pdb.set_trace()
 
 	# plot
 	if args.plots: 
