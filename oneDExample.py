@@ -5,8 +5,13 @@ from tensorflow.keras.models import model_from_json
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+np.random.seed(1984)
 
-def produceToyData(minX, maxX, nPoints):
+def edgeExponential(x, offset=0.0, beta=1.):
+    return np.exp(beta*(x+offset))
+
+
+def produceToyData(minX, maxX, nPoints, enhanceEdges=False):
     """! 
     Produce data in one dimension with a minimum and a maximum. 
     The target data will be the distance of a randomly generated point to the max. 
@@ -15,6 +20,53 @@ def produceToyData(minX, maxX, nPoints):
     # If we weren't given a pdf, simply produced evenly spaced data between the min ans max
     points = np.random.uniform(minX, maxX, nPoints)
     directions = np.random.choice([-1,1], nPoints)
+    if enhanceEdges:
+        nEdgePoints = 5*nPoints
+        beta = 100.
+        tempPoints = np.random.uniform(minX, minX+0.05*(maxX-minX), nEdgePoints)
+        lowEdge = edgeExponential(tempPoints, offset=minX, beta=-1.*beta)
+        choicesLowEdge = np.random.choice(tempPoints, size=tempPoints.size, p=lowEdge/np.sum(lowEdge))
+
+        points = np.append(points, choicesLowEdge)
+        #directions = np.append(directions, np.random.choice([-1,1], nEdgePoints))
+        directions = np.append(directions, -1.*np.ones(choicesLowEdge.shape))
+
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.plot(tempPoints,lowEdge, '.')
+        ax.set_xlabel('x position')
+        ax.set_ylabel('lowEdge')
+        plt.savefig('lowEdgeTest.pdf', bbox_inches='tight')
+
+        plt.clf()
+        fig, ax = plt.subplots()
+        plt.hist(choicesLowEdge, bins=20)
+        ax.set_xlabel('x position')
+        ax.set_ylabel('N')
+        plt.savefig('lowChoiceTest.pdf', bbox_inches='tight')
+
+
+        tempPoints = np.random.uniform(.95*(maxX-minX), maxX, nEdgePoints)
+        highEdge = edgeExponential(tempPoints, offset=maxX, beta=beta)
+        choicesHighEdge = np.random.choice(tempPoints, size=tempPoints.size, p=highEdge/np.sum(highEdge))
+
+        points = np.append(points, choicesHighEdge)
+        #directions = np.append(directions, np.random.choice([-1,1], nEdgePoints))
+        directions = np.append(directions, np.ones(choicesHighEdge.shape))
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.plot(tempPoints,highEdge, '.')
+        ax.set_xlabel('x position')
+        ax.set_ylabel('highEdge')
+        plt.savefig('highEdgeTest.pdf', bbox_inches='tight')
+
+        plt.clf()
+        fig, ax = plt.subplots()
+        plt.hist(choicesHighEdge, bins=20)
+        ax.set_xlabel('x position')
+        ax.set_ylabel('N')
+        plt.savefig('highChoiceTest.pdf', bbox_inches='tight')
+    
     targets = np.zeros(points.shape)
     for targetI in range(points.shape[0]):
         if directions[targetI] > 0:
@@ -82,22 +134,30 @@ def analyze(inputs, targes, modelFName='models/kerasReg.json', weightsSavePath='
     ax.plot(points,delta, '.')
     ax.set_xlabel('x position')
     ax.set_ylabel('$d_{\\mathrm{pred}}-d_{\\mathrm{true}}$')
-    plt.savefig('predVsTrue.pdf', bbox_inches='tight')
+    plt.savefig('err.pdf', bbox_inches='tight')
+
+    plt.clf
+    relDelta = (np.squeeze(preds)-targets)/targets
+    fig, ax = plt.subplots()
+    ax.plot(points,relDelta, '.')
+    ax.set_xlabel('x position')
+    ax.set_ylabel('$\\frac{d_{\\mathrm{pred}}-d_{\\mathrm{true}}}{d_{\\mathrm{true}}}$')
+    plt.savefig('relErr.pdf', bbox_inches='tight')
 
     plt.close('all');
 
-   
+    
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Train a NN for regression.')
     parser.add_argument('trainAnalyze', help="Perform training, analyze, or both.")
-    parser.add_argument('--epochs', type=int, help='Number of epochs', default=10000)
+    parser.add_argument('--epochs', type=int, help='Number of epochs', default=1000)
     parser.add_argument('--batchSize', type=int, help='Batch sizes', default=100)
-    parser.add_argument('--nTrainingPoints', type=int, help='Number of points to use for training', default=100)
+    parser.add_argument('--nTrainingPoints', type=int, help='Number of points to use for training', default=1000)
     parser.add_argument('--trainTestRatio', type=float, help='Ratio of training to testing sample', default=10)
     args = parser.parse_args()
 
-    inputs, targets = produceToyData(0, 1, args.nTrainingPoints)
+    inputs, targets = produceToyData(0, 1, args.nTrainingPoints, enhanceEdges=True)
     if 'train' in args.trainAnalyze:
         train(inputs, targets, epochs=args.epochs, batchSize=args.batchSize)
         
