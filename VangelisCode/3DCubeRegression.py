@@ -11,6 +11,7 @@ import h5py,csv,pickle
 from datetime import date,datetime
 from tensorflow.keras.optimizers import *
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
+today = str(date.today())
 
 def getG4Datasets(G4FilePath):
 	'''
@@ -97,10 +98,11 @@ def getMLP(inputShape, hiddenNodes, fActivation='relu', fOptimizer='adam', fOutp
 	
 	# construct
 	model = tf.keras.Sequential()
-	model.add(tf.keras.layers.Dense(hiddenNodes[0], input_shape=(inputShape,), activation=fActivation, kernel_initializer='he_uniform'))
+	model.add(tf.keras.layers.Dense(hiddenNodes[0], input_shape=(inputShape,), activation=fActivation))
 	for layer in range(1, len(hiddenNodes)):
-		model.add(tf.keras.layers.Dense(hiddenNodes[layer], activation=fActivation, kernel_initializer='he_uniform'))
+		model.add(tf.keras.layers.Dense(hiddenNodes[layer], activation=fActivation))
 	model.add(tf.keras.layers.Dense(1, activation=fOutputActivation))
+	# check kernel_initializer='he_uniform'. it doesn't learn.
 
 	# compile
 	model.compile(
@@ -110,12 +112,10 @@ def getMLP(inputShape, hiddenNodes, fActivation='relu', fOptimizer='adam', fOutp
 	
 	return model
 
-def printTable(dictionary):
-	string = ""
-	# for item in [key+': '+str(dictionary[key])+'\n' for key in dictionary]:
-	for item in [key+': '+str(dictionary[key])+', ' for key in dictionary]:
-		string += item
-	return string.rstrip()
+def logConfiguration(dictionary):
+	f = open('data/modelConfig_'+timestamp+'.txt','w')
+	f.write( str(dictionary) )
+	f.close()
 
 def perfPlots(prediction, truth, details, savename='results'):
 	'''
@@ -127,8 +127,7 @@ def perfPlots(prediction, truth, details, savename='results'):
 	print("Hi from Plotter!")
 
 	# create dir
-	today = date.today()
-	saveDir = 'plots/'+str(today)+'/'+timestamp
+	saveDir = 'plots/'+today+'/'+timestamp
 	system('mkdir -p '+saveDir)
 
 	# create subplot env with shared y axis
@@ -156,7 +155,7 @@ def perfPlots(prediction, truth, details, savename='results'):
 	axs[2].set(xlabel='Truth L - Predicted L')
 
 	# NN details
-	fig.suptitle(printTable(details), size='xx-small')
+	# fig.suptitle(printTable(details), size='xx-small')
 	# plt.text(0.6, 0.8, printTable(details), transform = axs[2].transAxes, size=5, bbox=dict(facecolor='white'))
 
 	# save
@@ -220,8 +219,7 @@ def combPerfPlots(Vprediction, Vtruth, Tprediction=None, Ttruth=None, savename='
 	plt.clf()
 
 	# create dir
-	today = date.today()
-	saveDir = 'plots/'+str(today)+'/'+timestamp
+	saveDir = 'plots/'+today+'/'+timestamp
 	system('mkdir -p '+saveDir)
 
 	if (Tprediction is not None) and (Ttruth is not None): combined = True
@@ -270,8 +268,7 @@ def inputPlots(inputs, savename='inputs'):
 	print("Hi from Plotter!")
 
 	# create dir
-	today = date.today()
-	saveDir = 'plots/'+str(today)+'/'+timestamp
+	saveDir = 'plots/'+today+'/'+timestamp
 	system('mkdir -p '+saveDir)
 
 	# create subplot env with shared y axis
@@ -309,8 +306,6 @@ def inputPlots(inputs, savename='inputs'):
 	axs[2,1].set(xlabel='Z\'')
 
 	# save
-	now = datetime.now()
-	timestamp = int(datetime.timestamp(now))
 	plt.savefig(saveDir+'/'+savename+'.pdf')
 	print(savename+".pdf Saved!")
 
@@ -339,15 +334,14 @@ if __name__ == '__main__':
 	validation_split = 0.05
 
 	# define your settings
-	# todo: I need to somehow read these when I load the model
 	settings = {
-		'Structure'				:	[512,1024],
+		'Structure'				:	[1024,1024],
 		'Optimizer'				:	Adam(learning_rate=0.005),
 		'Activation'			:	'relu',
 		'OutputActivation'		:	'sigmoid',
 		'Loss'					:	'mse',
-		'Batch'					:	32,
-		'Epochs'				:	40,
+		'Batch'					:	64,
+		'Epochs'				:	50,
 		'Training Sample Size'	:	int(trainX.shape[0]*(1-validation_split))
 	}
 
@@ -364,18 +358,19 @@ if __name__ == '__main__':
 		mlp_model.summary()
 		# fit model
 		history = mlp_model.fit(trainX, trainY, epochs=settings['Epochs'], batch_size=settings['Batch'], validation_split=validation_split)
-		# save model
-		if not args.test: mlp_model.save('data/mlp_model_'+timestamp)
 
-		# Plot training & validation loss values
-		plt.plot(history.history['loss'])
-		plt.plot(history.history['val_loss'])
-		plt.ylabel('Loss (MSE)')
-		plt.xlabel('Epoch')
-		plt.legend(['Train', 'Validation'], loc='upper right')
-		today = str(date.today())
-		system('mkdir -p plots/'+today+'/'+timestamp)
-		if not args.test: plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
+		# save model and print learning rate
+		if not args.test: 
+			mlp_model.save('data/mlp_model_'+timestamp)
+			logConfiguration(settings)
+			# Plot training & validation loss values
+			plt.plot(history.history['loss'])
+			plt.plot(history.history['val_loss'])
+			plt.ylabel('Loss (MSE)')
+			plt.xlabel('Epoch')
+			plt.legend(['Train', 'Validation'], loc='upper right')
+			system('mkdir -p plots/'+today+'/'+timestamp)
+			plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
 
 	# load MLP model
 	else:
@@ -400,10 +395,10 @@ if __name__ == '__main__':
 	# plot
 	if args.plots: 
 		perfPlots(prediction=pred_valY, truth=valY.numpy(), details=settings, savename='resultsVal')
-		# inputPlots(valX.numpy(), savename='inputsVal')
+		inputPlots(valX.numpy(), savename='inputsVal')
 		if args.G4Dataset is not None: 
 			perfPlots(prediction=pred_g4Y, truth=g4Y.numpy(), details=settings, savename='resultsG4')
-			# inputPlots(g4X.numpy(), savename='inputsG4')
+			inputPlots(g4X.numpy(), savename='inputsG4')
 		
 		# combined plots
 		if args.G4Dataset is not None: combPerfPlots(Vprediction=pred_valY, Vtruth=valY.numpy(), Tprediction=pred_g4Y, Ttruth=g4Y.numpy())
