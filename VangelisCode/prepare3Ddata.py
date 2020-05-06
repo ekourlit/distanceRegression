@@ -6,6 +6,7 @@ from geo import *
 import pdb
 from tqdm import tqdm
 import h5py
+from os import system
 
 def getPlaneNormal(fPlane):
 	'''
@@ -66,13 +67,33 @@ def getLinePlaneIntersection(fLine, fPlane, epsilon=1e-10):
 		if not (np.all(intersex>=shift) and np.all(intersex<=1+shift)): return None
 		return intersex
 
+def saveData(index, points, direction, length=1.0):
+	if not args.HDF5:
+		# save to dataset dictionary for pickling
+		dataset['i'].append(index)
+		dataset['X'].append(points[0,0])
+		dataset['Y'].append(points[0,1])
+		dataset['Z'].append(points[0,2])
+		dataset['Xprime'].append(direction[0])
+		dataset['Yprime'].append(direction[1])
+		dataset['Zprime'].append(direction[2])
+		dataset['L'].append(length)
+	else:
+		group = hdf.create_group('point'+str(index))
+		group.create_dataset('position', data=points[0,:], compression='gzip')
+		group.create_dataset('direction', data=direction, compression='gzip')
+		group.create_dataset('length', data=np.array([length]), compression='gzip')
+
+parser = argparse.ArgumentParser(description='Create a dataset of a pair of 3D points (position and direction unit vecor) and the distance to the boundary of a unit cube.')
+parser.add_argument('--sampleSize', type=int, help='Number of data points.', default=1000)
+parser.add_argument('--saveFile', help='Save the dataset in a pickle file.', default=False, action='store_true')
+parser.add_argument('--HDF5', help='Save the dataset in a HDF5 file.', default=False, action='store_true')
+parser.add_argument('--filename', help='Pickle file name.', default="3Ddata")
+parser.add_argument('--custom', help='Not a unit cube but custom range.', default=False, action='store_true')
+
 if __name__ == '__main__':
 
-	parser = argparse.ArgumentParser(description='Create a dataset of a pair of 3D points (position and direction unit vecor) and the distance to the boundary of a unit cube.')
-	parser.add_argument('--sampleSize', type=int, help='Number of data points.', default=1000)
-	parser.add_argument('--saveFile', help='Save the dataset in a pickle file.', default=False, action='store_true')
-	parser.add_argument('--HDF5', help='Save the dataset in a HDF5 file.', default=False, action='store_true')
-	parser.add_argument('--filename', help='Pickle file name.', default="3Ddata")
+	# parse the arguments
 	args = parser.parse_args()
 
 	# create data dir
@@ -95,54 +116,46 @@ if __name__ == '__main__':
 
 	for i in tqdm(range(args.sampleSize)):
 		
-		# sample uniformly a pair of 3D points in [shift, 1+shift)
-		points = np.random.uniform(shift, 1+shift, 6)
-		points.shape = (2,3)
-		P = points # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
+		if not args.custom:
+			# sample uniformly a pair of 3D points in [shift, 1+shift)
+			points = np.random.uniform(shift, 1+shift, 6)
+			points.shape = (2,3)
+			P = points # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
 		
-		# or sample a pair of custom 3D points
-		# x = np.random.uniform(-3820., 3820., 2)
-		# y = np.random.uniform(-3820., 3820., 2)
-		# z = np.random.uniform(-3521.1, 3521.1, 2)
-		# P = np.column_stack((x,y,z)) # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
+		else:
+			# or sample a pair of custom 3D points
+			x = np.random.uniform(-2070., 2070., 2)
+			y = np.random.uniform(-2070., 2070., 2)
+			z = np.random.uniform(-3050.5, -2420.5, 2)
+			P = np.column_stack((x,y,z)) # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
 
 		line = Line(Point(P[0,:]), Point(P[1,:]))
 		# line direction vector and its unit vector
 		u = getLineDirection(line)
 		u_hat = u/np.linalg.norm(u)
 
-		count = 0
-		for plane in boundaries:
-			# Line - Plane Intersection point
-			I = getLinePlaneIntersection(line, boundaries[plane], epsilon=1e-50)
-			if I is not None:
-				count =+ 1
-				lengthToBoundary = Point(P[0,:]).distance_to(Point(I))
-				assert lengthToBoundary < math.sqrt(3), "The length is longer than physically allowed!"
-				lengthToBoundaryNorm = lengthToBoundary/math.sqrt(3)
-		assert count < 2, "More than one intersection found! Unphysical!"
-		
-		# In some cased I dont' find intersection. I don't exactly know why but I can just drop these points
-		if count == 1:
-			# print some data
-			# if (i % (args.sampleSize/10) == 0): print("i: %i, X: %f, Y: %f, Z: %f, Xprime: %f, Yprime: %f, Zprime: %f, L: %f" % (i, P[0,0], P[0,1], P[0,2], u_hat[0], u_hat[1], u_hat[2], lengthToBoundary))
 
-			if not args.HDF5:
-				# save to dataset dictionary for pickling
-				dataset['i'].append(i)
-				dataset['X'].append(P[0,0])
-				dataset['Y'].append(P[0,1])
-				dataset['Z'].append(P[0,2])
-				dataset['Xprime'].append(u_hat[0])
-				dataset['Yprime'].append(u_hat[1])
-				dataset['Zprime'].append(u_hat[2])
-				dataset['L'].append(lengthToBoundary)
-			else:
-				group = hdf.create_group('point'+str(i))
-				group.create_dataset('position', data=P[0,:], compression='gzip')
-				group.create_dataset('direction', data=u_hat, compression='gzip')
-				group.create_dataset('length', data=np.array([lengthToBoundary]), compression='gzip')
+		if not args.custom:
+			# unit cube lengthToBoundary calculations
 
+			count = 0
+			for plane in boundaries:
+				# Line - Plane Intersection point
+				I = getLinePlaneIntersection(line, boundaries[plane], epsilon=1e-50)
+				if I is not None:
+					count =+ 1
+					lengthToBoundary = Point(P[0,:]).distance_to(Point(I))
+					assert lengthToBoundary < math.sqrt(3), "The length is longer than physically allowed!"
+					lengthToBoundaryNorm = lengthToBoundary/math.sqrt(3)
+			assert count < 2, "More than one intersection found! Unphysical!"
+			
+			# In some cased I dont' find intersection. I don't exactly know why but I can just drop these points
+			if count == 1: saveData(i, P, u_hat, lengthToBoundary)
+
+		# just save the points			
+		else: saveData(i, P, u_hat)
+
+	# write out
 	if args.saveFile:
 		if not args.HDF5: 
 			with open('data/'+args.filename+'.pickle', 'wb') as f: pickle.dump(dataset, f)
@@ -151,7 +164,7 @@ if __name__ == '__main__':
 			hdf.close()
 			print("\nFile %s saved!" % (args.filename+'.h5'))
 
-	# plot some shit
-	from matplotlib import pyplot as plt
-	plt.hist(np.array(dataset['L']), bins=100, range=(0,2))
-	plt.savefig('distance.pdf')
+	# plot
+	# from matplotlib import pyplot as plt
+	# plt.hist(np.array(dataset['L']), bins=100, range=(0,2))
+	# plt.savefig('distance.pdf')
