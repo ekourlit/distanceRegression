@@ -124,9 +124,9 @@ if __name__ == '__main__':
 		
 		else:
 			# or sample a pair of custom 3D points
-			x = np.random.uniform(-2070., 2070., 2)
-			y = np.random.uniform(-2070., 2070., 2)
-			z = np.random.uniform(-3050.5, -2420.5, 2)
+			x = np.random.uniform(-1600., 1600., 2)
+			y = np.random.uniform(-1600., 1600., 2)
+			z = np.random.uniform(-1600., 1600., 2)
 			P = np.column_stack((x,y,z)) # P[0,:] is np.array([x1,y1,z1]), P[1,:] is np.array([x2,y2,z2])
 
 		line = Line(Point(P[0,:]), Point(P[1,:]))
