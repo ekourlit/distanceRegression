@@ -10,12 +10,15 @@ def noOverestimateLossFunction(y_true, y_pred):
     Hopefully this will prevent us from overestimating the boundary to the next volume.
     !"""
     negIndex = ((y_true-y_pred) < 0)
-    nNegs =K.sum(K.cast(negIndex, dtype='float32'))
+    nNegs = K.sum(K.cast(negIndex, dtype='float32'))
     # This parameter needs to be tuned. Need to figure out how to make this a function parameter with keras.
-    negPunish = 1;
-    negLoss = nNegs*negPunish
-    posLoss = K.cast(K.mean(K.square(y_true[~negIndex]-y_pred[~negIndex])), dtype='float32')
-    totalLoss = posLoss+negLoss
+    negPunish = 8.;
+    negLoss = K.mean(K.square(y_true[negIndex]-y_pred[negIndex]))
+    posLoss = K.mean(K.square(y_true[~negIndex]-y_pred[~negIndex]))
+    mse = K.mean(K.square(y_true-y_pred))
+    totalLoss = negPunish*negLoss+posLoss
+    print(totalLoss, negLoss, posLoss, mse)
+    print(nNegs, y_true.shape)
     return totalLoss
 
     
@@ -26,7 +29,7 @@ def regression(inputShape, outputDim, savePath, outputAct, hiddenSpaceSize=[50],
         model.add(layers.Dense(hiddenSpaceSize[layerI], activation=activations[layerI]))
 
     model.add(layers.Dense(outputDim, activation=outputAct))
-    model.compile(loss=noOverestimateLossFunction, optimizer=tf.keras.optimizers.Adam(lr=0.0001), metrics=['mae', 'mse'])
+    model.compile(loss=noOverestimateLossFunction, optimizer=tf.keras.optimizers.Adam(lr=0.0001), metrics=['mse'])
     # Store model to file
     model_json = model.to_json()
     with open(savePath, "w") as json_file:

@@ -5,7 +5,10 @@ from tensorflow.keras.models import model_from_json
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-np.random.seed(1984)
+seed=1984
+np.random.seed(seed)
+import tensorflow as tf
+tf.random.set_seed(seed)
 
 def edgeExponential(x, offset=0.0, beta=1.):
     return np.exp(beta*(x+offset))
@@ -87,13 +90,13 @@ def train(x, y, epochs=1000, batchSize=100, modelFName='models/kerasReg.json', w
     Train a regression network.
     """
     model = regression([len(x.shape)], len(y.shape), modelFName, 'linear')
-    history = model.fit(x, y, epochs=epochs, batch_size=batchSize, validation_split=validationSplit, verbose=0, shuffle=True)
+    history = model.fit(x, y, epochs=epochs, batch_size=batchSize, validation_split=validationSplit, verbose=1, shuffle=True)
 
     model.save_weights(weightsSavePath)
     pickle.dump(history.history, open(historyPath, 'wb'))
 
     
-def analyze(inputs, targes, modelFName='models/kerasReg.json', weightsSavePath='models/weightsReg.h5', historyPath='history.pkl'):
+def analyze(inputs, targets, modelFName='models/kerasReg.json', weightsSavePath='models/weightsReg.h5', historyPath='history.pkl'):
     """! 
     Let's analyze the result of the training.
     """
@@ -109,47 +112,31 @@ def analyze(inputs, targes, modelFName='models/kerasReg.json', weightsSavePath='
     history = pickle.load(open(historyPath, 'rb'))
    
     plt.clf()
-    epochs = np.arange(len(history['mse']))
+    epochs = np.arange(len(history['loss']))
     fig, ax = plt.subplots()
-    ax.plot(epochs, history['mse'], label='Train')
-    ax.plot(epochs, history['val_mse'], label='Val')
-    ax.set_xlabel('MSE')
-    ax.set_ylabel('epoch')
+    ax.plot(epochs, history['loss'], label='Train')
+    ax.plot(epochs, history['val_loss'], label='Val')
+    ax.set_ylabel('loss')
+    ax.set_xlabel('epoch')
     ax.legend(loc="best", borderaxespad=0.)
-    plt.savefig('mse.pdf', bbox_inches='tight')    
-
-    plt.clf()
-    epochs = np.arange(len(history['mae']))
-    fig, ax = plt.subplots()
-    ax.plot(epochs, history['mae'], label='Train')
-    ax.plot(epochs, history['val_mse'], label='Val')
-    ax.set_xlabel('MAE')
-    ax.set_ylabel('epoch')
-    ax.legend(loc="best", borderaxespad=0.)
-    plt.savefig('mae.pdf', bbox_inches='tight')    
+    plt.savefig('loss.pdf', bbox_inches='tight')    
 
     plt.clf
-    delta = np.squeeze(preds)-targets
+    delta = targets-np.squeeze(preds)
     fig, ax = plt.subplots()
     ax.plot(points,delta, '.')
     ax.set_xlabel('x position')
-    ax.set_ylabel('$d_{\\mathrm{pred}}-d_{\\mathrm{true}}$')
+    ax.set_ylabel('$d_{\\mathrm{true}}-d_{\\mathrm{pred}}$')
     plt.savefig('err.pdf', bbox_inches='tight')
 
     plt.clf
-    relDelta = (np.squeeze(preds)-targets)/targets
-    fig, ax = plt.subplots()
-    ax.plot(points,relDelta, '.')
-    ax.set_xlabel('x position')
-    ax.set_ylabel('$\\frac{d_{\\mathrm{pred}}-d_{\\mathrm{true}}}{d_{\\mathrm{true}}}$')
-    plt.savefig('relErr.pdf', bbox_inches='tight')
-    
-    plt.clf
     fig, ax = plt.subplots()
     ax.hist(delta, histtype='step', bins=100)
-    ax.set_xlabel('$d_{\\mathrm{pred}}-d_{\\mathrm{true}}$')
+    ax.set_xlabel('$d_{\\mathrm{true}}-d_{\\mathrm{pred}}$')
     ax.set_ylabel('Occurances')
     plt.savefig('errHist.pdf', bbox_inches='tight')
+    ax.set_yscale('log')
+    plt.savefig('errHist_log.pdf', bbox_inches='tight')
 
     plt.close('all');
 
@@ -162,7 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('trainAnalyze', help="Perform training, analyze, or both.")
     parser.add_argument('--epochs', type=int, help='Number of epochs', default=1000)
     parser.add_argument('--batchSize', type=int, help='Batch sizes', default=100)
-    parser.add_argument('--nTrainingPoints', type=int, help='Number of points to use for training', default=1000)
+    parser.add_argument('--nTrainingPoints', type=int, help='Number of points to use for training', default=10000)
     parser.add_argument('--trainTestRatio', type=float, help='Ratio of training to testing sample', default=10)
     args = parser.parse_args()
 
