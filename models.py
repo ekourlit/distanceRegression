@@ -9,12 +9,12 @@ def noOverestimateLossFunction(y_true, y_pred):
     """! 
     Hopefully this will prevent us from overestimating the boundary to the next volume.
     !"""
-    print(y_true)
     negIndex = ((y_true-y_pred) < 0)
-    nNegs =K.sum(K.cast(negIndex, dtype='float64'))
+    nNegs =K.sum(K.cast(negIndex, dtype='float32'))
+    # This parameter needs to be tuned. Need to figure out how to make this a function parameter with keras.
     negPunish = 1;
     negLoss = nNegs*negPunish
-    posLoss = K.mean(K.square(y_true[~negIndex]-y_pred[~negIndex]))
+    posLoss = K.cast(K.mean(K.square(y_true[~negIndex]-y_pred[~negIndex])), dtype='float32')
     totalLoss = posLoss+negLoss
     return totalLoss
 
