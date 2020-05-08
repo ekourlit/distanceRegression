@@ -12,7 +12,7 @@ def noOverestimateLossFunction(y_true, y_pred):
     negIndex = ((y_true-y_pred) < 0)
     nNegs = K.sum(K.cast(negIndex, dtype='float32'))
     # This parameter needs to be tuned. Need to figure out how to make this a function parameter with keras.
-    negPunish = 8.;
+    negPunish = 20.;
     negLoss = K.mean(K.square(y_true[negIndex]-y_pred[negIndex]))
     posLoss = K.mean(K.square(y_true[~negIndex]-y_pred[~negIndex]))
     mse = K.mean(K.square(y_true-y_pred))
