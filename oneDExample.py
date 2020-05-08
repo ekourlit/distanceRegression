@@ -143,9 +143,18 @@ def analyze(inputs, targes, modelFName='models/kerasReg.json', weightsSavePath='
     ax.set_xlabel('x position')
     ax.set_ylabel('$\\frac{d_{\\mathrm{pred}}-d_{\\mathrm{true}}}{d_{\\mathrm{true}}}$')
     plt.savefig('relErr.pdf', bbox_inches='tight')
+    
+    plt.clf
+    fig, ax = plt.subplots()
+    ax.hist(delta, histtype='step', bins=100)
+    ax.set_xlabel('$d_{\\mathrm{pred}}-d_{\\mathrm{true}}$')
+    ax.set_ylabel('Occurances')
+    plt.savefig('errHist.pdf', bbox_inches='tight')
 
     plt.close('all');
 
+    noOverestimateLossFunction(targets, np.squeeze(preds))
+    
     
 if __name__ == '__main__':
     
@@ -157,7 +166,7 @@ if __name__ == '__main__':
     parser.add_argument('--trainTestRatio', type=float, help='Ratio of training to testing sample', default=10)
     args = parser.parse_args()
 
-    inputs, targets = produceToyData(0, 1, args.nTrainingPoints, enhanceEdges=True)
+    inputs, targets = produceToyData(0, 1, args.nTrainingPoints, enhanceEdges=False)
     if 'train' in args.trainAnalyze:
         train(inputs, targets, epochs=args.epochs, batchSize=args.batchSize)
         
