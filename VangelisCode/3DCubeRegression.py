@@ -52,9 +52,9 @@ def getG4Datasets(G4FilePath, batch_size=32, shuffle_buffer_size=1000, dataAPI=F
 	if '.hdf5' in G4FilePath:
 		file = h5py.File(G4FilePath,'r')
 		
-		X = np.array(file['default_ntuples']['B4']['x']['pages'])/positionNormalisation # convert these to -1 - 1 range
-		Y = np.array(file['default_ntuples']['B4']['y']['pages'])/positionNormalisation # convert these to -1 - 1 range
-		Z = np.array(file['default_ntuples']['B4']['z']['pages'])/positionNormalisation # convert these to -1 - 1 range
+		X = np.array(file['default_ntuples']['B4']['x']['pages'])/positionNormalisation
+		Y = np.array(file['default_ntuples']['B4']['y']['pages'])/positionNormalisation
+		Z = np.array(file['default_ntuples']['B4']['z']['pages'])/positionNormalisation
 		Xprime = np.array(file['default_ntuples']['B4']['dx']['pages'])
 		Yprime = np.array(file['default_ntuples']['B4']['dy']['pages'])
 		Zprime = np.array(file['default_ntuples']['B4']['dz']['pages'])
@@ -77,9 +77,8 @@ def getG4Datasets(G4FilePath, batch_size=32, shuffle_buffer_size=1000, dataAPI=F
 			# create TextLineDatasets (lines) from the above list
 			dataset = file_list.interleave(
 				lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
-				cycle_length=1)
-				# , # the number of paths it concurrently process from file_list
-				# num_parallel_calls=tf.data.experimental.AUTOTUNE) 
+				# cycle_length=1) # the number of paths it concurrently process from file_list
+				num_parallel_calls=tf.data.experimental.AUTOTUNE) 
 			# parse & process csv line
 			dataset = dataset.map(process_csv_line)
 			# keep a hand in memory and shuffle
