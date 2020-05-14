@@ -1,5 +1,6 @@
 import os,pdb,argparse
 import tensorflow as tf
+from models import *
 import mlflow.keras
 import pandas as pd
 import numpy as np
@@ -21,6 +22,7 @@ def consumeCSV(path):
 	scv_columns = ['X','Y','Z','Xprime','Yprime','Zprime','L']
 	return tf.data.experimental.make_csv_dataset(path, batch_size=1, column_names=scv_columns, label_name=scv_columns[-1], num_epochs=1)
 
+@tf.function
 def process_csv_line(line):
 	'''
 	Process each csv line of the dataset.
@@ -75,7 +77,9 @@ def getG4Datasets(G4FilePath, batch_size=32, shuffle_buffer_size=1000, dataAPI=F
 			# create TextLineDatasets (lines) from the above list
 			dataset = file_list.interleave(
 				lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
-				cycle_length=1) # the number of paths it concurrently process from file_list
+				cycle_length=1)
+				# , # the number of paths it concurrently process from file_list
+				# num_parallel_calls=tf.data.experimental.AUTOTUNE) 
 			# parse & process csv line
 			dataset = dataset.map(process_csv_line)
 			# keep a hand in memory and shuffle
@@ -129,29 +133,6 @@ def getDatasets(pickleFile, validation_ratio=0.2):
 	validation_data_output = tf.convert_to_tensor(validation_data[['L']].values/lengthNormalisation)
 
 	return train_data_input, train_data_output, validation_data_input, validation_data_output
-
-def getMLP(fhiddenNodes, inputShape=6, fActivation='relu', fOptimizer='adam', fOutputActivation='sigmoid', fLoss='mse'):
-	'''
-	Construct a fully connected MLP.
-	return
-		model: keras model
-	'''
-	
-	# construct
-	model = tf.keras.Sequential()
-	model.add(tf.keras.layers.Dense(fhiddenNodes[0], input_shape=(inputShape,), activation=fActivation))
-	for layer in range(1, len(fhiddenNodes)):
-		model.add(tf.keras.layers.Dense(fhiddenNodes[layer], activation=fActivation))
-	model.add(tf.keras.layers.Dense(1, activation=fOutputActivation))
-	# check kernel_initializer='he_uniform'. it doesn't learn.
-
-	# compile
-	model.compile(
-		loss=fLoss,
-		optimizer=fOptimizer,
-		metrics=['mae'])
-	
-	return model
 
 def logConfiguration(dictionary):
 	f = open('data/modelConfig_'+timestamp+'.txt','w')
@@ -369,13 +350,13 @@ if __name__ == '__main__':
 	
 	# define your settings
 	settings = {
-		'Structure'				:	[1024,1024],
+		'Structure'				:	[128,128,128],
 		'Optimizer'				:	Adam(learning_rate=0.005),
 		'Activation'			:	'relu',
 		'OutputActivation'		:	'sigmoid',
 		'Loss'					:	'mse',
 		'Batch'					:	64,
-		'Epochs'				:	2
+		'Epochs'				:	5
 		# 'Training Sample Size'	:	int(trainX.shape[0]*(1-validation_split))
 	}
 
@@ -385,14 +366,12 @@ if __name__ == '__main__':
 
 	# create MLP model
 	if args.model is None:
-		mlp_model = getMLP(fhiddenNodes=settings['Structure'],
-						   fActivation=settings['Activation'],
-						   fOptimizer=settings['Optimizer'],
-						   fOutputActivation=settings['OutputActivation'],
-						   fLoss=settings['Loss'])
+		mlp_model = getSimpleMLP(settings['Structure'],
+						         activation=settings['Activation'],
+						         optimizer=settings['Optimizer'],
+						         output_activation=settings['OutputActivation'],
+						         loss=settings['Loss'])
 
-		# print model summary
-		mlp_model.summary()
 		# fit model
 		history = mlp_model.fit(trainData,
 			                    epochs=settings['Epochs'],
