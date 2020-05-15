@@ -40,11 +40,40 @@ def process_csv_line(line):
 	length = tf.stack(fields[-1:])/lengthNormalisation
 	return features, length
 
-def getG4Datasets(G4FilePath, batch_size=32, shuffle_buffer_size=1000, dataAPI=False):
+def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
+	'''
+	Load datasets generated from Geant4.
+	arguments
+		G4FilePath: file path, can be wildcarded
+		batch_size: the batch size to slice the dataset
+		shuffle_buffer_size: the shuffle hand size
+	return
+		dataset: tf.data.Dataset
+	'''
+
+	# using tf.data API
+	if dataAPI:
+		# create a file list dataset
+		file_list = tf.data.Dataset.list_files(G4FilePath)
+		# create TextLineDatasets (lines) from the above list
+		dataset = file_list.interleave(
+			lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
+			# cycle_length=1) # the number of paths it concurrently process from file_list
+			num_parallel_calls=tf.data.experimental.AUTOTUNE) 
+		# parse & process csv line
+		dataset = dataset.map(process_csv_line)
+		# keep a hand in memory and shuffle
+		dataset = dataset.shuffle(shuffle_buffer_size)
+		# chop in batches and prepare in CPU 1 bach ahead before you feed into evaluation
+		dataset = dataset.batch(batch_size).prefetch(1)
+
+		return dataset
+
+def getG4Datasets(G4FilePath):
 	'''
 	Construct the test datasets generated from Geant4.
 	arguments
-		HDF5File: the data file
+		G4FilePath: file path
 	return
 		data_input, data_output: 1 x tf.Tensor. Input shape (i,6), output shape (i,1).
 	'''
@@ -69,42 +98,22 @@ def getG4Datasets(G4FilePath, batch_size=32, shuffle_buffer_size=1000, dataAPI=F
 
 	# csv input
 	else:
+		# to-do: I want to feed a wildcarded path here
+		data = np.loadtxt(G4FilePath, delimiter=',', skiprows=15)
 
-		# using tf.data API
-		if dataAPI:
-			# create a file list dataset
-			file_list = tf.data.Dataset.list_files(G4FilePath)
-			# create TextLineDatasets (lines) from the above list
-			dataset = file_list.interleave(
-				lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
-				# cycle_length=1) # the number of paths it concurrently process from file_list
-				num_parallel_calls=tf.data.experimental.AUTOTUNE) 
-			# parse & process csv line
-			dataset = dataset.map(process_csv_line)
-			# keep a hand in memory and shuffle
-			dataset = dataset.shuffle(shuffle_buffer_size)
-			# chop in batches and prepare in CPU 1 bach ahead before you feed into evaluation
-			dataset = dataset.batch(batch_size).prefetch(1)
+		L = (data[:,6]/lengthNormalisation).reshape(data[:,6].size,1)
+		if lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
+		# normalise X, Y, Z and concatenate with X', Y', Z'
+		inputs = np.concatenate((data[:,:3]/positionNormalisation, data[:,3:6]), axis=1)
+		
+		data_input = tf.convert_to_tensor(inputs)
+		data_output = tf.convert_to_tensor(L)
 
-			return dataset
-
-		# just load everything in memory
-		else:
-			data = np.loadtxt(G4FilePath, delimiter=',', skiprows=15)
-
-			L = (data[:,6]/lengthNormalisation).reshape(data[:,6].size,1)
-			assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
-			# normalise X, Y, Z and concatenate with X', Y', Z'
-			inputs = np.concatenate((data[:,:3]/positionNormalisation, data[:,3:6]), axis=1)
-			
-			data_input = tf.convert_to_tensor(inputs)
-			data_output = tf.convert_to_tensor(L)
-
-			return data_input, data_output
+		return data_input, data_output
 
 def getDatasets(pickleFile, validation_ratio=0.2):
 	'''
-	Construct the training and validation datasets.
+	Construct the training and validation datasets from custom pickle files.
 	arguments
 		pickleFile: the data file
 		validation_ratio: portion of the data that comprise the validation dataset
@@ -344,7 +353,8 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	# set normalisations
-	lengthNormalisation = 5543
+	# lengthNormalisation = 5543
+	lengthNormalisation = 1
 	positionNormalisation = 1600
 	
 	# define your settings
@@ -352,31 +362,31 @@ if __name__ == '__main__':
 		'Structure'				:	[128,128,128],
 		'Optimizer'				:	Adam(learning_rate=0.005),
 		'Activation'			:	'relu',
-		'OutputActivation'		:	'sigmoid',
+		'OutputActivation'		:	'relu',
 		'Loss'					:	'mse',
-		'Batch'					:	64,
-		'Epochs'				:	5
+		'Batch'					:	128,
+		'Epochs'				:	50
 		# 'Training Sample Size'	:	int(trainX.shape[0]*(1-validation_split))
 	}
 
-	# get some train/validation data
-	if args.model is None: trainData = getG4Datasets(args.trainData, batch_size=settings['Batch'], dataAPI=True)
-	validationData = getG4Datasets(args.validationData, batch_size=settings['Batch'], shuffle_buffer_size=1, dataAPI=True)
+	# get some data to train on
+	# load everything in memory
+	trainX, trainY = getG4Datasets(args.trainData)
 
 	# create MLP model
 	if args.model is None:
-		mlp_model = getSimpleMLP(settings['Structure'],
+		mlp_model = getBiasedMLP(settings['Structure'],
 						         activation=settings['Activation'],
 						         optimizer=settings['Optimizer'],
 						         output_activation=settings['OutputActivation'],
 						         loss=settings['Loss'])
 
 		# fit model
-		history = mlp_model.fit(trainData,
+		history = mlp_model.fit(trainX, trainY,
 			                    epochs=settings['Epochs'],
-			                    validation_data=validationData)
-			                    # batch_size=settings['Batch'],
-			                    # validation_split=validation_split) # not supported with data API pipeline but you could feed dataset
+			                    batch_size=settings['Batch'],
+			                    validation_split=0.01) # not supported with data API pipeline but you can feed dataset
+			                    # validation_data=validationData)
 
 		# save model and print learning rate
 		if not args.test: 
