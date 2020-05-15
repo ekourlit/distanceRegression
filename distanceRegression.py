@@ -111,37 +111,6 @@ def getG4Datasets(G4FilePath):
 
 		return data_input, data_output
 
-def getDatasets(pickleFile, validation_ratio=0.2):
-	'''
-	Construct the training and validation datasets from custom pickle files.
-	arguments
-		pickleFile: the data file
-		validation_ratio: portion of the data that comprise the validation dataset
-	return
-		train_data_input, train_data_output, validation_data_input, validation_data_output: 4 x tf.Tensor. Input shape (0,6), output shape (0,1).
-	'''
-
-	# load data
-	dataset = pd.DataFrame(pd.read_pickle(pickleFile))
-	# split data
-	split_index = int(len(dataset) * (1 - validation_ratio))
-	train_data = dataset.head(split_index)
-	validation_data = dataset.tail(len(dataset) - split_index)
-
-	# convert X, Y, Z from -0.5 - 0.5 to -1 - 1
-	# these lines might spit a warning but it still works fine
-	train_data[['X','Y','Z']] = train_data[['X','Y','Z']].apply(lambda x: x/0.5)
-	validation_data[['X','Y','Z']] = validation_data[['X','Y','Z']].apply(lambda x: x/0.5)
-
-	# convert DataFrame to tf.Tensor
-	train_data_input = tf.convert_to_tensor(train_data[['X','Y','Z','Xprime','Yprime','Zprime']].values)
-	validation_data_input = tf.convert_to_tensor(validation_data[['X','Y','Z','Xprime','Yprime','Zprime']].values)
-	# a normalisation of the output is also happening
-	train_data_output = tf.convert_to_tensor(train_data[['L']].values/lengthNormalisation)
-	validation_data_output = tf.convert_to_tensor(validation_data[['L']].values/lengthNormalisation)
-
-	return train_data_input, train_data_output, validation_data_input, validation_data_output
-
 def logConfiguration(dictionary):
 	f = open('data/modelConfig_'+timestamp+'.txt','w')
 	f.write( str(dictionary) )
@@ -366,7 +335,6 @@ if __name__ == '__main__':
 		'Loss'					:	'mse',
 		'Batch'					:	128,
 		'Epochs'				:	50
-		# 'Training Sample Size'	:	int(trainX.shape[0]*(1-validation_split))
 	}
 
 	# get some data to train on
@@ -375,7 +343,7 @@ if __name__ == '__main__':
 
 	# create MLP model
 	if args.model is None:
-		mlp_model = getBiasedMLP(settings['Structure'],
+		mlp_model = getSimpleMLP(settings['Structure'],
 						         activation=settings['Activation'],
 						         optimizer=settings['Optimizer'],
 						         output_activation=settings['OutputActivation'],
