@@ -50,8 +50,8 @@ A lot of the MLP configuration can be set at the `settings` dictionary inside th
 settings = {
 		'Structure'				:	[128,128,128],
 		'Optimizer'				:	Adam(learning_rate=0.005),
-		'Activation'			:	'relu',
-		'OutputActivation'		:	'relu',
+		'Activation'			    :	'relu',
+		'OutputActivation'		    :	'relu',
 		'Loss'					:	'mse',
 		'Batch'					:	128,
 		'Epochs'				:	50
