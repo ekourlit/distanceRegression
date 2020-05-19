@@ -1,4 +1,4 @@
-import os,pdb,argparse
+import os,pdb,argparse,sys
 import tensorflow as tf
 from models import *
 # import mlflow.keras
@@ -333,17 +333,18 @@ def inputPlots(inputs, savename='inputs'):
 
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
-parser.add_argument('--trainData', help='Train dataset.', required=False)
+parser.add_argument('--trainData', help='Train dataset.', required=False, default=None)
 parser.add_argument('--validationData', help='Train dataset.', required=True)
 parser.add_argument('--testData', help='Test dataset.', required=False)
 parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
-parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None)
+parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None, required=False)
 parser.add_argument('--test', help='Model testing environment. Do not save.', default=False, action='store_true')
 
 if __name__ == '__main__':
 
 	# parse the arguments
 	args = parser.parse_args()
+	if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
 
 	# set normalisations
 	# lengthNormalisation = 5543
