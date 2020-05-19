@@ -19,7 +19,6 @@ def noOverestimateLossFunction(y_true, y_pred):
     print(totalLoss, negLoss, posLoss, mse)
     print(nNegs, y_true.shape)
     return totalLoss
-
     
 def regression(inputShape, outputDim, savePath, outputAct, hiddenSpaceSize=[50], activations=['relu']):
     model = keras.Sequential()
@@ -36,26 +35,9 @@ def regression(inputShape, outputDim, savePath, outputAct, hiddenSpaceSize=[50],
     model.summary()
     return model
 
-
-def noOverestimateLossFunction(y_true, y_pred):
-    """! 
-    Hopefully this will prevent us from overestimating the boundary to the next volume.
-    !"""
-    negIndex = ((y_true-y_pred) < 0)
-    nNegs = K.sum(K.cast(negIndex, dtype='float32'))
-    # This parameter needs to be tuned. Need to figure out how to make this a function parameter with keras.
-    negPunish = 20.;
-    negLoss = K.mean(K.square(y_true[negIndex]-y_pred[negIndex]))
-    posLoss = K.mean(K.square(y_true[~negIndex]-y_pred[~negIndex]))
-    mse = K.mean(K.square(y_true-y_pred))
-    totalLoss = negPunish*negLoss+posLoss
-    print(totalLoss, negLoss, posLoss, mse)
-    print(nNegs, y_true.shape)
-    return totalLoss
-
 def getBiasedMLP(hiddenNodes, input_shape=6, **settings):
     '''
-    Construct a fully connected MLP.
+    Construct a fully connected MLP with noOverestimateLossFunction as loss function.
     return
         model: keras model
     '''
@@ -99,6 +81,50 @@ def getSimpleMLP(hiddenNodes, input_shape=6, **settings):
         loss=settings['loss'],
         optimizer=settings['optimizer'],
         metrics=['mae'])
+
+    # print model summary
+    model.summary()
+    
+    return model
+
+def getSplitMLP(input_shape=3, **settings):
+    '''
+    Construct an MLP which takes two inputs and concatenates them further on.
+    return
+        model: keras model
+
+    to-do: I could use the hiddenNodes argument as [[input_P],[input_D],[concatenated]]
+    '''
+    
+    # two independent input layers
+    input_P = tf.keras.layers.Input(shape=(input_shape,), name='position')
+    input_D = tf.keras.layers.Input(shape=(input_shape,), name='direction')
+
+    # two independent hidden layers paths
+    hidden_P1 = tf.keras.layers.Dense(512, activation=settings['activation'])(input_P)
+    hidden_P2 = tf.keras.layers.Dense(512, activation=settings['activation'])(hidden_P1)
+    # 
+    hidden_D1 = tf.keras.layers.Dense(512, activation=settings['activation'])(input_D)
+    hidden_D2 = tf.keras.layers.Dense(512, activation=settings['activation'])(hidden_D1)
+
+    # concatenate them
+    concat = tf.keras.layers.concatenate([hidden_P2, hidden_D2])
+
+    # common hidden layers
+    hidden_C1 = tf.keras.layers.Dense(512, activation=settings['activation'])(concat)
+    hidden_C2 = tf.keras.layers.Dense(512, activation=settings['activation'])(hidden_C1)
+
+    # output layer
+    output = tf.keras.layers.Dense(1, activation=settings['output_activation'], name='distance')(hidden_C2)
+
+    # construct the model
+    model = tf.keras.Model(inputs=[input_P, input_D], outputs=[output])
+
+    # compile
+    model.compile(
+        loss=settings['loss'],
+        optimizer=settings['optimizer'],
+        metrics=['mse','mae'])
 
     # print model summary
     model.summary()
