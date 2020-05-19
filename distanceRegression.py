@@ -1,7 +1,7 @@
 import os,pdb,argparse
 import tensorflow as tf
 from models import *
-import mlflow.keras
+# import mlflow.keras
 import pandas as pd
 import numpy as np
 import math
@@ -110,6 +110,30 @@ def getG4Datasets(G4FilePath):
 		data_output = tf.convert_to_tensor(L)
 
 		return data_input, data_output
+
+def getG4SplitInputDatasets(G4FilePath):
+	'''
+	Construct the test datasets generated from Geant4.
+	arguments
+		G4FilePath: file path
+	return
+		data_input, data_output: 1 x tf.Tensor. Input shape (i,6), output shape (i,1).
+	'''
+
+	# to-do: I want to feed a wildcarded path here
+	data = np.loadtxt(G4FilePath, delimiter=',', skiprows=15)
+
+	L = (data[:,6]/lengthNormalisation).reshape(data[:,6].size, 1)
+	if lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
+	# normalise X, Y, Z 
+	positions = data[:,:3]/positionNormalisation
+	# X', Y', Z'
+	directions = data[:,3:6]
+
+	data_input = {'position' : tf.convert_to_tensor(positions), 'direction' : tf.convert_to_tensor(directions)}
+	data_output = tf.convert_to_tensor(L)
+
+	return data_input, data_output
 
 def logConfiguration(dictionary):
 	f = open('data/modelConfig_'+timestamp+'.txt','w')
@@ -305,7 +329,7 @@ def inputPlots(inputs, savename='inputs'):
 	print(savename+".pdf Saved!")
 
 # enable MLflow autologging XLA
-mlflow.keras.autolog()
+# mlflow.keras.autolog()
 
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
@@ -329,25 +353,26 @@ if __name__ == '__main__':
 	# define your settings
 	settings = {
 		'Structure'				:	[128,128,128],
-		'Optimizer'				:	Adam(learning_rate=0.005),
 		'Activation'			:	'relu',
 		'OutputActivation'		:	'relu',
 		'Loss'					:	'mse',
+		'Optimizer'				:	Adam(learning_rate=0.005),
 		'Batch'					:	128,
-		'Epochs'				:	50
+		'Epochs'				:	2
 	}
-
-	# get some data to train on
-	# load everything in memory
-	trainX, trainY = getG4Datasets(args.trainData)
 
 	# create MLP model
 	if args.model is None:
+
+		# get some data to train on
+		# load everything in memory
+		trainX, trainY = getG4Datasets(args.trainData)
+
 		mlp_model = getSimpleMLP(settings['Structure'],
-						         activation=settings['Activation'],
-						         optimizer=settings['Optimizer'],
+								 activation=settings['Activation'],
 						         output_activation=settings['OutputActivation'],
-						         loss=settings['Loss'])
+						         loss=settings['Loss'],
+						         optimizer=settings['Optimizer'])
 
 		# fit model
 		history = mlp_model.fit(trainX, trainY,
