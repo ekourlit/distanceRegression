@@ -3,6 +3,7 @@ import tensorflow.keras.backend as K
 from tensorflow import keras
 from tensorflow.keras import layers
 import numpy as np
+import pdb
 
 def noOverestimateLossFunction(y_true, y_pred):
     """! 
@@ -87,13 +88,24 @@ def getSimpleMLP(hiddenNodes, input_shape=6, **settings):
     
     return model
 
-def getSplitMLP(input_shape=3, **settings):
+def getSplitMLP(hiddenNodes, input_shape=3, **settings):
     '''
-    Construct an MLP which takes two inputs and concatenates them further on.
+    Construct a regression MLP which takes two inputs and concatenates them further on.
+
+              |                 |
+    Position  | . . . . . . . . | 
+              |                 |
+                    Concatenate | . . . | Distance
+              |                 |
+    Direction | . . . . . . . . |
+              |                 |
+
+    arguments:
+        {hiddenNodes['Position']    : [possition_hidden_layers],
+        hiddenNodes['Direction']    : [direction_hidden_layers],
+        hiddenNodes['Concatenated'] : [concatenated_hidden_layers]}
     return
         model: keras model
-
-    to-do: I could use the hiddenNodes argument as [[input_P],[input_D],[concatenated]]
     '''
     
     # two independent input layers
@@ -101,21 +113,23 @@ def getSplitMLP(input_shape=3, **settings):
     input_D = tf.keras.layers.Input(shape=(input_shape,), name='direction')
 
     # two independent hidden layers paths
-    hidden_P1 = tf.keras.layers.Dense(512, activation=settings['activation'])(input_P)
-    hidden_P2 = tf.keras.layers.Dense(512, activation=settings['activation'])(hidden_P1)
+    hidden_P = tf.keras.layers.Flatten(name='dummy_position_path')(input_P)
+    for layer in range(0, len(hiddenNodes['Position'])):
+        hidden_P = tf.keras.layers.Dense(hiddenNodes['Position'][layer], activation=settings['activation'])(hidden_P)
     # 
-    hidden_D1 = tf.keras.layers.Dense(512, activation=settings['activation'])(input_D)
-    hidden_D2 = tf.keras.layers.Dense(512, activation=settings['activation'])(hidden_D1)
+    hidden_D = tf.keras.layers.Flatten(name='dummy_direction_path')(input_D)
+    for layer in range(0, len(hiddenNodes['Direction'])):
+        hidden_D = tf.keras.layers.Dense(hiddenNodes['Direction'][layer], activation=settings['activation'])(hidden_D)
 
-    # concatenate them
-    concat = tf.keras.layers.concatenate([hidden_P2, hidden_D2])
-
-    # common hidden layers
-    hidden_C1 = tf.keras.layers.Dense(512, activation=settings['activation'])(concat)
-    hidden_C2 = tf.keras.layers.Dense(512, activation=settings['activation'])(hidden_C1)
+    # concatenate the two paths
+    hidden_C = tf.keras.layers.concatenate([hidden_P, hidden_D])
+    
+    # final common hidden layers
+    for layer in range(0, len(hiddenNodes['Concatenated'])):
+        hidden_C = tf.keras.layers.Dense(hiddenNodes['Concatenated'][layer], activation=settings['activation'])(hidden_C)
 
     # output layer
-    output = tf.keras.layers.Dense(1, activation=settings['output_activation'], name='distance')(hidden_C2)
+    output = tf.keras.layers.Dense(1, activation=settings['output_activation'], name='distance')(hidden_C)
 
     # construct the model
     model = tf.keras.Model(inputs=[input_P, input_D], outputs=[output])
