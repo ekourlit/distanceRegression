@@ -115,14 +115,18 @@ def getG4SplitInputDatasets(G4FilePath, lengthNormalisation=1, positionNormalisa
 
 	return data_input, data_output
 
-def load_data(trainDataFPath='/users/ekourlitis/atlasfs02/PolyconeBoxData/GeantData/geom_type_1_nsensors_2_dense_1/train_merged.csv', valDataFPath='/users/ekourlitis/atlasfs02/PolyconeBoxData/GeantData/geom_type_1_nsensors_2_dense_1/validation_6.csv'):
+def load_data(trainDataFPath='/projects/atlas_aesp/whopkins/GeantData/geom_type_1_nsensors_2_dense_1/train_merged.csv', valDataFPath='/projects/atlas_aesp/whopkins/GeantData/geom_type_1_nsensors_2_dense_1/validation_6.csv'):
 	"""! 
 	Load some data!
 	"""
 	lengthNormalisation = 1
 	positionNormalisation = 1600
 	
-	trainX, trainY = getG4Datasets(trainDataFName, lengthNormalisation=lengthNormalisation, positionNormalisation=positionNormalisation)
-	valX, valY = getG4Datasets(valDataFName, lengthNormalisation=lengthNormalisation, positionNormalisation=positionNormalisation)
+	trainX, trainY = getG4Datasets(trainDataFPath, lengthNormalisation=lengthNormalisation, positionNormalisation=positionNormalisation)
+	valX, valY = getG4Datasets(valDataFPath, lengthNormalisation=lengthNormalisation, positionNormalisation=positionNormalisation)
 
-	return (train_X, train_y), (valid_X, valid_y)
+	return (trainX, trainY), (valX, valY)
+
+
+if __name__ == '__main__':
+	load_data()
