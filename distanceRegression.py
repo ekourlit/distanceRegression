@@ -6,7 +6,6 @@ from plotUtils import Plot
 import pandas as pd
 import numpy as np
 import math
-import matplotlib as mpl
 from matplotlib import pyplot as plt
 from os import system
 import h5py,csv,pickle
@@ -125,144 +124,6 @@ def logConfiguration(dictionary):
     f.write( str(dictionary) )
     f.close()
 
-def perfPlots(prediction, truth, savename='results'):
-    '''
-    Produce a set of basic sanity/validation plots
-    arguments
-        prediction: the predicted np.array from MLP
-        truth: the truth np.array
-    '''
-    print("Hi from Plotter!")
-
-    # create dir
-    saveDir = 'plots/'+today+'/'+timestamp
-    system('mkdir -p '+saveDir)
-
-    # create subplot env with shared y axis
-    fig, axs = plt.subplots(1,3)
-    fig.tight_layout(pad=1.3)
-
-    # truth length
-    truth_length = truth*lengthNormalisation
-    axs[0].hist(truth_length, bins=100)
-    axs[0].set(xlabel='Truth L', ylabel='Points')
-    
-    # predicted length
-    pred_length = prediction*lengthNormalisation
-    axs[1].hist(pred_length, bins=100)
-    axs[1].set(xlabel='Predicted L')
-
-    # error
-    # error = np.divide(truth_length - pred_length, truth_length, out=np.zeros_like(truth_length - pred_length), where=truth_length!=0)
-    error = truth_length - pred_length
-    abs_error = abs(error)
-    axs[2].hist(error, bins=100, log=True)
-    axis = plt.gca()
-    axis.minorticks_on()
-    # axs[2].set(xlabel='Truth L - Predicted L / Truth L')
-    axs[2].set(xlabel='Truth L - Predicted L')
-
-    # save
-    plt.tight_layout()
-    plt.savefig(saveDir+'/'+savename+'_'+timestamp+'.pdf')
-    print(savename+'_'+timestamp+".pdf Saved!")
-
-    # 2D truth vs predicted marginal
-    # plt.clf()
-    # import seaborn as sns
-    # sns.set(style="ticks")
-    # plot = sns.jointplot(truth_length, pred_length, kind="hex", color="#2E5D9F", joint_kws=dict(gridsize=100))
-    # plot.set_axis_labels('Truth L', 'Predicted L')
-    # # save
-    # plt.tight_layout()
-    # plt.savefig(saveDir+'/'+savename+'_cor_'+timestamp+'.pdf')
-    # print(savename+'_cor_'+timestamp+".pdf Saved!")
-
-    # scatter
-    plt.clf()
-    plt.scatter(truth_length, pred_length, s=0.1)
-    axis = plt.gca()
-    axis.set_xlabel('Truth L')
-    axis.set_ylabel('Predicted L')
-    # save
-    plt.tight_layout()
-    plt.savefig(saveDir+'/'+savename+'_scatt_'+timestamp+'.png')
-    print(savename+'_scatt_'+timestamp+".pdf Saved!")
-
-    # hist2d Truth vs Predicted
-    plt.clf()
-    plt.hist2d(truth_length.reshape(len(truth_length),), pred_length.reshape(len(pred_length),), bins=(200,200), norm=mpl.colors.LogNorm())
-    plt.grid()
-    axis = plt.gca()
-    axis.set_xlabel('Truth L')
-    axis.set_ylabel('Predicted L')
-    # save
-    plt.tight_layout()
-    plt.savefig(saveDir+'/'+savename+'_truthVSpred_'+timestamp+'.pdf')
-    print(savename+'_truthVSpred_'+timestamp+".pdf Saved!")
-
-    # hist2d Error vs Truth
-    plt.clf()
-    plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(50,50),  norm=mpl.colors.LogNorm())
-    axis = plt.gca()
-    axis.set_xlabel('Truth L')
-    axis.set_ylabel('Truth L - Predicted L')
-    # save
-    plt.tight_layout()
-    plt.savefig(saveDir+'/'+savename+'_truthVSerror_'+timestamp+'.pdf')
-    print(savename+'_truthVSerror_'+timestamp+".pdf Saved!")
-
-def combPerfPlots(Vprediction, Vtruth, Tprediction=None, Ttruth=None, savename='pred_error'):
-    '''
-    Produce a set of basic sanity/validation plots
-    arguments
-        Vprediction, Tprediction: the validation and test predicted np.array from MLP
-        Vtruth, Ttruth: the validation and test truth np.array
-    '''
-    print("Hi from Plotter!")
-    plt.clf()
-
-    # create dir
-    saveDir = 'plots/'+today+'/'+timestamp
-    system('mkdir -p '+saveDir)
-
-    if (Tprediction is not None) and (Ttruth is not None): combined = True
-    else: combined = False
-
-    # validation
-    val_truth_length = Vtruth*lengthNormalisation
-    val_pred_length = Vprediction*lengthNormalisation
-    val_error = np.divide(val_truth_length - val_pred_length, val_truth_length, out=np.zeros_like(val_truth_length - val_pred_length), where=val_truth_length!=0)
-    val_abs_error = abs(val_error)
-    
-    if combined:
-        test_truth_length = Ttruth*lengthNormalisation
-        test_pred_length = Tprediction*lengthNormalisation
-        test_error = np.divide(test_truth_length - test_pred_length, test_truth_length, out=np.zeros_like(test_truth_length - test_pred_length), where=test_truth_length!=0)
-        test_abs_error = abs(test_error)
-
-    # what portion of the predictions has at least x error?
-    intervals = np.logspace(-4, 0, num=100)
-    val_counts = []
-    test_counts = []
-    for limit in intervals: 
-        val_counts.append(np.count_nonzero(val_abs_error>=limit))
-        if combined: test_counts.append(np.count_nonzero(test_abs_error>=limit))
-    
-    plt.plot(intervals, np.array(val_counts)/val_abs_error.size, color='#ff7f0e', linewidth=3)
-    if combined: plt.plot(intervals, np.array(test_counts)/test_abs_error.size, color='#1f77b4', linewidth=3)
-    plt.legend(['Validation','Test'], loc='upper right')
-
-    plt.grid()
-    axis = plt.gca()
-    axis.set_xscale('log')
-    axis.set_xlabel('Relative Error')
-    axis.set_ylabel('Dataset Portion')
-
-    # save
-    plt.savefig(saveDir+'/'+savename+'_'+timestamp+'.pdf')
-    print(savename+'_'+timestamp+".pdf Saved!")
-
 # enable MLflow autologging XLA
 # mlflow.keras.autolog()
 
@@ -356,17 +217,7 @@ if __name__ == '__main__':
 
     # plot
     if args.plots: 
-        myPlots = Plot(timestamp, inputFeatures=valX.numpy())
-        myPlots.inputPlots(savename='test_input')
-
-        # perfPlots(prediction=pred_valY, truth=valY.numpy(), savename='resultsVal')
-        # # inputPlots(valX.numpy(), savename='inputsVal')
-        # if args.testData is not None: 
-        #     perfPlots(prediction=pred_testX, truth=testY.numpy(), savename='resultsTest')
-        #     # inputPlots(g4X.numpy(), savename='inputsG4')
-        
-        # # combined plots
-        # if args.testData is not None: combPerfPlots(Vprediction=pred_valY, Vtruth=valY.numpy(), Tprediction=pred_testX, Ttruth=testY.numpy())
-        # else: combPerfPlots(Vprediction=pred_valY, Vtruth=valY.numpy())        
+        myPlots = Plot('validation', timestamp, inputFeatures=valX.numpy(), truth=valY.numpy(), prediction=pred_valY)
+        myPlots.plotPerformance()
     
     print("Done!")
