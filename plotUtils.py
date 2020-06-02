@@ -175,7 +175,8 @@ class Plot:
         # hist2d Error vs Truth
         # ###
         plt.clf()
-        plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(50,50),  norm=mpl.colors.LogNorm())
+        h = plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(50,50),  norm=mpl.colors.LogNorm())
+        plt.colorbar(h[3])
         axis = plt.gca()
         axis.set_xlabel('Truth L')
         axis.set_ylabel('Truth L - Predicted L')
