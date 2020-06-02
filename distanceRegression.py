@@ -69,7 +69,7 @@ def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
 
         return dataset
 
-def getG4Datasets(G4FilePath, split_input=False):
+def getG4Datasets(G4FilePath, train=False, split_input=False):
     '''
     Construct the test datasets generated from Geant4.
     arguments
@@ -99,25 +99,26 @@ def getG4Datasets(G4FilePath, split_input=False):
     # csv input
     else:
         # to-do: I want to feed a wildcarded path here
-	    data = np.loadtxt(G4FilePath, delimiter=',', skiprows=15)
+        data = np.loadtxt(G4FilePath, delimiter=',', skiprows=15)
 
-	    L = (data[:,6]/lengthNormalisation).reshape(data[:,6].size, 1)
-	    if lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
-	    
-	    # normalise X, Y, Z 
-	    positions = data[:,:3]/positionNormalisation
-	    # X', Y', Z'
-	    directions = data[:,3:6]
+        L = (data[:,6]/lengthNormalisation).reshape(data[:,6].size, 1)
+        if lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
 
-	    if split_input == True:
-		    data_input = {'position' : tf.convert_to_tensor(positions), 'direction' : tf.convert_to_tensor(directions)}
-	    else:
-	    	inputs = np.concatenate((positions, directions), axis=1)
-	    	data_input = tf.convert_to_tensor(inputs)
-	    
-	    data_output = tf.convert_to_tensor(L)
+        # normalise X, Y, Z 
+        positions = data[:,:3]/positionNormalisation
+        # X', Y', Z'
+        directions = data[:,3:6]
 
-	    return data_input, data_output
+        # prepare output
+        if split_input == True:
+            data_input = {'position' : tf.convert_to_tensor(positions), 'direction' : tf.convert_to_tensor(directions)}
+        else:
+            inputs = np.concatenate((positions, directions), axis=1)
+            data_input = tf.convert_to_tensor(inputs)
+        
+        data_output = tf.convert_to_tensor(L)
+
+        return data_input, data_output
 
 def logConfiguration(dictionary):
     f = open('data/modelConfig_'+timestamp+'.txt','w')
@@ -149,15 +150,15 @@ if __name__ == '__main__':
     
     # define your settings
     settings = {
-        'Description'       :    "test simple sequential feed-forward network",
+        'Description'       :    "simple sequential feed-forward network",
         # 'Structure'         :    {'Position' : [512,512,512], 'Direction' : [], 'Concatenated' : [1024,1024]},
         'Structure'         :    [1024,1024],
         'Activation'        :    'relu',
-        'OutputActivation'	:    'relu',
+        'OutputActivation'  :    'relu',
         'Loss'              :    'mse',
         'Optimizer'         :    Adam(learning_rate=0.005),
-        'Batch'             :    256,
-        'Epochs'            :    100
+        'Batch'             :    64,
+        'Epochs'            :    20
     }
 
     # create MLP model
@@ -165,9 +166,9 @@ if __name__ == '__main__':
 
         # get some data to train on
         # load everything in memory
-        trainX, trainY = getG4Datasets(args.trainData)
+        trainX, trainY = getG4Datasets(args.trainData, train=True)
 
-        mlp_model = getSplitMLP(settings['Structure'],
+        mlp_model = getSimpleMLP(settings['Structure'],
                                 activation=settings['Activation'],
                                 output_activation=settings['OutputActivation'],
                                 loss=settings['Loss'],
