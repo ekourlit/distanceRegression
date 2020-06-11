@@ -85,6 +85,19 @@ class Plot:
         plt.savefig(savename)
         print("Plot\t::\t"+savename+" saved!")
 
+        if self.truth is None:
+            print("Plot\t::\t Truth L is not defined. Skip plotting.")
+        else:
+            # plot L too
+            plt.clf()
+            plt.hist(self.truth, bins=100)
+            axis = plt.gca()
+            axis.set_xlabel(xlabel='L')
+            # save
+            savename = self.saveDir+'/'+self.name+'_length.pdf'
+            plt.savefig(savename)
+            print("Plot\t::\t"+savename+" saved!")
+
     def plotPerformance(self):
         '''
         Produce a set of performance plots
@@ -163,6 +176,7 @@ class Plot:
         plt.hist2d(truth_length.reshape(len(truth_length),), pred_length.reshape(len(pred_length),), bins=(200,200), norm=mpl.colors.LogNorm())
         plt.grid()
         axis = plt.gca()
+        plt.plot([0,axis.get_xlim()[1]], [0,axis.get_ylim()[1]], c='r')
         axis.set_xlabel('Truth L')
         axis.set_ylabel('Predicted L')
         # save
@@ -172,12 +186,13 @@ class Plot:
         print("Plot\t::\t"+savename+" saved!")
 
         # ###
-        # hist2d Error vs Truth
+        # hist2d Truth vs Error
         # ###
         plt.clf()
         h = plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(50,50),  norm=mpl.colors.LogNorm())
         plt.colorbar(h[3])
         axis = plt.gca()
+        plt.plot([axis.get_xlim()[0],axis.get_xlim()[1]], [0,0], c='r')
         axis.set_xlabel('Truth L')
         axis.set_ylabel('Truth L - Predicted L')
         # save
