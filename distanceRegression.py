@@ -9,10 +9,24 @@ import math
 from matplotlib import pyplot as plt
 from os import system
 import h5py,csv,pickle
+import json
 from datetime import date,datetime
 from tensorflow.keras.optimizers import *
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
 today = str(date.today())
+
+# limit full GPU memory allocation by gradually allocating memory as needed
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+  try:
+    # Currently, memory growth needs to be the same across GPUs
+    for gpu in gpus:
+      tf.config.experimental.set_memory_growth(gpu, True)
+    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+  except RuntimeError as e:
+    # Memory growth must be set before GPUs have been initialized
+    print(e)
 
 def consumeCSV(path):
     '''
@@ -69,7 +83,7 @@ def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
 
         return dataset
 
-def getG4Datasets(G4FilePath, train=False, split_input=False):
+def getG4Datasets(G4FilePath, split_input=False):
     '''
     Construct the test datasets generated from Geant4.
     arguments
@@ -120,9 +134,35 @@ def getG4Datasets(G4FilePath, train=False, split_input=False):
 
         return data_input, data_output
 
+def getDatasets(pickleFile):
+    '''
+    Construct the training and validation datasets.
+    arguments
+        pickleFile: the data file
+    return
+        data_input, data_output. Input shape (0,6), output shape (0,1).
+    '''
+
+    # load data
+    dataset = pd.DataFrame(pd.read_pickle(pickleFile))
+    # split data
+    train_data = dataset
+
+    # potentially normalize X, Y, Z data
+    # these lines might spit a warning but it still works fine
+    train_data[['X','Y','Z']] = train_data[['X','Y','Z']].apply(lambda x: x/1.0)
+
+    # convert DataFrame to tf.Tensor
+    train_data_input = tf.convert_to_tensor(train_data[['X','Y','Z','Xprime','Yprime','Zprime']].values)
+    # a normalisation of the output might also happening
+    train_data_output = tf.convert_to_tensor(train_data[['L']].values/lengthNormalisation)
+
+    return train_data_input, train_data_output
+
 def logConfiguration(dictionary):
-    f = open('data/modelConfig_'+timestamp+'.txt','w')
-    f.write( str(dictionary) )
+    log = json.dumps(dictionary)
+    f = open('data/modelConfig_'+timestamp+'.json','w')
+    f.write(log)
     f.close()
 
 # enable MLflow autologging XLA
@@ -150,29 +190,37 @@ if __name__ == '__main__':
     
     # define your settings
     settings = {
-        'Description'       :    "simple sequential feed-forward network",
+        'Description'       :    "simple sequential feed-forward network to estimate the distance to the surface of a unit sphere",
         # 'Structure'         :    {'Position' : [512,512,512], 'Direction' : [], 'Concatenated' : [1024,1024]},
-        'Structure'         :    [1024,1024],
+        'Structure'         :    [256,256,128],
         'Activation'        :    'relu',
         'OutputActivation'  :    'relu',
-        'Loss'              :    'mse',
-        'Optimizer'         :    Adam(learning_rate=0.005),
-        'Batch'             :    64,
-        'Epochs'            :    20
+        'Loss'              :    'getNoOverestimateLossFunction', #noOverestimateLossFunction #mae #mse
+        'negExp'            :    1.39, # only for noOverestimateLossFunction
+        'Optimizer'         :    'Adam',
+        'LearningRate'      :    0.00100,
+        'Batch'             :    512,
+        'Epochs'            :    200
     }
+    # this is needed along with eval to convert the str to function call
+    dispatcher = {'getNoOverestimateLossFunction':getNoOverestimateLossFunction, 'Adam':Adam}
 
     # create MLP model
     if args.model is None:
 
         # get some data to train on
         # load everything in memory
-        trainX, trainY = getG4Datasets(args.trainData, train=True)
+        trainX, trainY = getG4Datasets(args.trainData)
 
+        # get loss function
+        lossFunc = eval(settings['Loss']+'('+str(settings['negExp'])+')', {'__builtins__':None}, dispatcher) if 'getNoOverestimateLossFunction' in settings['Loss'] else settings['Loss']
+
+        # get the DNN model
         mlp_model = getSimpleMLP(settings['Structure'],
-                                activation=settings['Activation'],
-                                output_activation=settings['OutputActivation'],
-                                loss=settings['Loss'],
-                                optimizer=settings['Optimizer'])
+                                 activation=settings['Activation'],
+                                 output_activation=settings['OutputActivation'],
+                                 loss=lossFunc,
+                                 optimizer=eval(settings['Optimizer']+'('+str(settings['LearningRate'])+')', {'__builtins__':None}, dispatcher))
 
         # fit model
         history = mlp_model.fit(trainX, trainY,
@@ -183,7 +231,7 @@ if __name__ == '__main__':
 
         # save model and print learning rate
         if not args.test: 
-            mlp_model.save('data/mlp_model_'+timestamp)
+            mlp_model.save('data/mlp_model_'+timestamp+'.h5')
             logConfiguration(settings)
             # Plot training & validation loss values
             plt.plot(history.history['loss'])
@@ -197,10 +245,14 @@ if __name__ == '__main__':
 
     # load MLP model
     else:
-        mlp_model = tf.keras.models.load_model(args.model)
+        timestamp = [item.split('_')[-1].split('.')[0] for item in args.model.split('/') if 'mlp' in item][0]
+        # unfortunately the negExp is not saved but I can retrieve it from the logs
+        logDic = json.load(open('data/modelConfig_'+timestamp+'.json'))
+        retValNegExp = logDic['negExp'] if 'negExp' in logDic.keys() else 1
+
+        mlp_model = tf.keras.models.load_model(args.model, custom_objects={'noOverestimateLossFunction':getNoOverestimateLossFunction(negExp=retValNegExp)})
         # print model summary
         mlp_model.summary()
-        timestamp = [item.split('_')[-1] for item in args.model.split('/') if 'mlp' in item][0]
 
     # predict on validation data
     print("Loading all validation data in memory...")
@@ -218,7 +270,9 @@ if __name__ == '__main__':
 
     # plot
     if args.plots: 
-        myPlots = Plot('validation', timestamp, inputFeatures=valX.numpy(), truth=valY.numpy(), prediction=pred_valY)
-        myPlots.plotPerformance()
+        validationPlots = Plot('validation', timestamp, inputFeatures=valX.numpy(), truth=valY.numpy(), prediction=pred_valY)
+        # trainPlots = Plot('training', timestamp, inputFeatures=trainX.numpy(), truth=trainY.numpy())
+        validationPlots.plotPerformance()
+        # trainPlots.plotInputs()
     
     print("Done!")
