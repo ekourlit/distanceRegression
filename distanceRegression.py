@@ -28,14 +28,6 @@ if gpus:
     # Memory growth must be set before GPUs have been initialized
     print(e)
 
-def consumeCSV(path):
-    '''
-    create tf.data.dataset by mapping on a tf.data.dataset containing file paths
-    that's a great function but it still experimental and doesn't work with AutoGraph (not convertible)
-    '''
-    scv_columns = ['X','Y','Z','Xprime','Yprime','Zprime','L']
-    return tf.data.experimental.make_csv_dataset(path, batch_size=1, column_names=scv_columns, label_name=scv_columns[-1], num_epochs=1)
-
 @tf.function
 def process_csv_line(line):
     '''
@@ -66,24 +58,23 @@ def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
     '''
 
     # using tf.data API
-    if dataAPI:
-        # create a file list dataset
-        file_list = tf.data.Dataset.list_files(G4FilePath)
-        # create TextLineDatasets (lines) from the above list
-        dataset = file_list.interleave(
-            lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
-            # cycle_length=1) # the number of paths it concurrently process from file_list
-            num_parallel_calls=tf.data.experimental.AUTOTUNE) 
-        # parse & process csv line
-        dataset = dataset.map(process_csv_line)
-        # keep a hand in memory and shuffle
-        dataset = dataset.shuffle(shuffle_buffer_size)
-        # chop in batches and prepare in CPU 1 bach ahead before you feed into evaluation
-        dataset = dataset.batch(batch_size).prefetch(1)
+    # create a file list dataset
+    file_list = tf.data.Dataset.list_files(G4FilePath)
+    # create TextLineDatasets (lines) from the above list
+    dataset = file_list.interleave(
+        lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
+        # cycle_length=1) # the number of paths it concurrently process from file_list
+        num_parallel_calls=tf.data.experimental.AUTOTUNE) 
+    # parse & process csv line
+    dataset = dataset.map(process_csv_line)
+    # keep a hand in memory and shuffle
+    dataset = dataset.shuffle(shuffle_buffer_size)
+    # chop in batches and prepare in CPU 1 bach ahead before you feed into evaluation
+    dataset = dataset.batch(batch_size).prefetch(1)
 
-        return dataset
+    return dataset
 
-def getG4Datasets(G4FilePath, split_input=False):
+def getG4Arrays(G4FilePath, split_input=False):
     '''
     Construct the test datasets generated from Geant4.
     arguments
@@ -125,16 +116,22 @@ def getG4Datasets(G4FilePath, split_input=False):
 
         # prepare output
         if split_input == True:
-            data_input = {'position' : tf.convert_to_tensor(positions), 'direction' : tf.convert_to_tensor(directions)}
+            data_input = {'position' : positions, 'direction' : directions}
         else:
-            inputs = np.concatenate((positions, directions), axis=1)
-            data_input = tf.convert_to_tensor(inputs)
+            data_input = np.concatenate((positions, directions), axis=1)
         
-        data_output = tf.convert_to_tensor(L)
+        data_output = L
 
         return data_input, data_output
 
-def getDatasets(pickleFile):
+def getDatasets(data_input, data_output, batch_size=2048, shuffle_buffer_size=1000):
+    # create and return TF dataset
+    dataset = tf.data.Dataset.from_tensor_slices((data_input,data_output))
+    dataset = dataset.shuffle(shuffle_buffer_size)
+    dataset = dataset.batch(batch_size)
+    return dataset
+
+def getCustomArrays(pickleFile):
     '''
     Construct the training and validation datasets.
     arguments
@@ -186,7 +183,8 @@ if __name__ == '__main__':
     # set normalisations
     # lengthNormalisation = 5543
     lengthNormalisation = 1
-    positionNormalisation = 1600
+    # positionNormalisation = 1600
+    positionNormalisation = 1
     
     # define your settings
     settings = {
@@ -196,38 +194,38 @@ if __name__ == '__main__':
         'Activation'        :    'relu',
         'OutputActivation'  :    'relu',
         'Loss'              :    'getNoOverestimateLossFunction', #noOverestimateLossFunction #mae #mse
-        'negExp'            :    1.39, # only for noOverestimateLossFunction
+        'negExp'            :    1.2, # only for noOverestimateLossFunction
         'Optimizer'         :    'Adam',
         'LearningRate'      :    0.00100,
-        'Batch'             :    512,
-        'Epochs'            :    200
+        'Batch'             :    1024,
+        'Epochs'            :    5
     }
     # this is needed along with eval to convert the str to function call
     dispatcher = {'getNoOverestimateLossFunction':getNoOverestimateLossFunction, 'Adam':Adam}
 
+    # load the validation data, which are needed either you train or not
+    valX, valY  = getG4Arrays(args.trainData)
+    valDataset = getDatasets(valX, valY)
+
     # create MLP model
     if args.model is None:
 
-        # get some data to train on
+        # get some data to train & validate on
         # load everything in memory
-        trainX, trainY = getG4Datasets(args.trainData)
-
-        # get loss function
-        lossFunc = eval(settings['Loss']+'('+str(settings['negExp'])+')', {'__builtins__':None}, dispatcher) if 'getNoOverestimateLossFunction' in settings['Loss'] else settings['Loss']
+        trainX, trainY  = getG4Arrays(args.trainData)
+        trainDataset = getDatasets(trainX, trainY, batch_size=settings['Batch'])
 
         # get the DNN model
         mlp_model = getSimpleMLP(settings['Structure'],
                                  activation=settings['Activation'],
                                  output_activation=settings['OutputActivation'],
-                                 loss=lossFunc,
+                                 loss=eval(settings['Loss']+'('+str(settings['negExp'])+')', {'__builtins__':None}, dispatcher) if 'getNoOverestimateLossFunction' in settings['Loss'] else settings['Loss'],
                                  optimizer=eval(settings['Optimizer']+'('+str(settings['LearningRate'])+')', {'__builtins__':None}, dispatcher))
 
         # fit model
-        history = mlp_model.fit(trainX, trainY,
+        history = mlp_model.fit(trainDataset,
                                 epochs=settings['Epochs'],
-                                batch_size=settings['Batch'],
-                                validation_split=0.01) # not supported with data API pipeline but you can feed dataset
-                                # validation_data=validationData)
+                                validation_data=valDataset)
 
         # save model and print learning rate
         if not args.test: 
@@ -255,12 +253,10 @@ if __name__ == '__main__':
         mlp_model.summary()
 
     # predict on validation data
-    print("Loading all validation data in memory...")
-    valX, valY = getG4Datasets(args.validationData)
     print("Calculating validation predictions for %i points..." % len(valX))
-    pred_valY = mlp_model.predict(valX)
+    pred_valY = mlp_model.predict(valDataset)
 
-    # that would be the test dataset
+    # that would be the test dataset - WIP
     if args.testData is not None:
         print("Loading all test data in memory...")
         testX, testY = getG4Datasets(args.testData)
@@ -270,7 +266,7 @@ if __name__ == '__main__':
 
     # plot
     if args.plots: 
-        validationPlots = Plot('validation', timestamp, inputFeatures=valX.numpy(), truth=valY.numpy(), prediction=pred_valY)
+        validationPlots = Plot('validation', timestamp, truth=valY, prediction=pred_valY)
         # trainPlots = Plot('training', timestamp, inputFeatures=trainX.numpy(), truth=trainY.numpy())
         validationPlots.plotPerformance()
         # trainPlots.plotInputs()
