@@ -12,6 +12,9 @@ import h5py,csv,pickle
 import json
 from datetime import date,datetime
 from tensorflow.keras.optimizers import *
+from tensorflow.keras.callbacks import EarlyStopping
+import config
+
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
 today = str(date.today())
 
@@ -49,29 +52,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
 
-    # set normalisations
-    # lengthNormalisation = 5543
-    lengthNormalisation = 1
-    # positionNormalisation = 1600
-    positionNormalisation = 1
-    
-    # define your settings
-    settings = {
-        'Description'       :    "simple sequential feed-forward network to estimate the distance to the surface of a unit sphere",
-        # 'Structure'         :    {'Position' : [512,512,512], 'Direction' : [], 'Concatenated' : [1024,1024]},
-        'Structure'         :    [256,256,128],
-        'Activation'        :    'relu',
-        'OutputActivation'  :    'relu',
-        'Loss'              :    'getNoOverestimateLossFunction', #noOverestimateLossFunction #mae #mse
-        'negExp'            :    1.2, # only for noOverestimateLossFunction
-        'Optimizer'         :    'Adam',
-        'LearningRate'      :    0.00100,
-        'Batch'             :    1024,
-        'Epochs'            :    5
-    }
-    # this is needed along with eval to convert the str to function call
-    dispatcher = {'getNoOverestimateLossFunction':getNoOverestimateLossFunction, 'Adam':Adam}
-
     # load the validation data, which are needed either you train or not
     valX, valY  = getG4Arrays(args.trainData)
     valDataset = getDatasets(valX, valY)
@@ -82,24 +62,25 @@ if __name__ == '__main__':
         # get some data to train & validate on
         # load everything in memory
         trainX, trainY  = getG4Arrays(args.trainData)
-        trainDataset = getDatasets(trainX, trainY, batch_size=settings['Batch'])
+        trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
 
         # get the DNN model
-        mlp_model = getSimpleMLP(settings['Structure'],
-                                 activation=settings['Activation'],
-                                 output_activation=settings['OutputActivation'],
-                                 loss=eval(settings['Loss']+'('+str(settings['negExp'])+')', {'__builtins__':None}, dispatcher) if 'getNoOverestimateLossFunction' in settings['Loss'] else settings['Loss'],
-                                 optimizer=eval(settings['Optimizer']+'('+str(settings['LearningRate'])+')', {'__builtins__':None}, dispatcher))
+        mlp_model = getSimpleMLP(config.settings['Structure'],
+                                 activation=config.settings['Activation'],
+                                 output_activation=config.settings['OutputActivation'],
+                                 loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
+                                 optimizer=eval(config.settings['Optimizer']+'('+str(config.settings['LearningRate'])+')', {'__builtins__':None}, config.dispatcher))
 
         # fit model
         history = mlp_model.fit(trainDataset,
-                                epochs=settings['Epochs'],
-                                validation_data=valDataset)
+                                epochs=config.settings['Epochs'],
+                                validation_data=valDataset,
+                                callbacks=[EarlyStopping(monitor='val_mae', patience=5, restore_best_weights=True)])
 
         # save model and print learning rate
         if not args.test: 
             mlp_model.save('data/mlp_model_'+timestamp+'.h5')
-            logConfiguration(settings)
+            logConfiguration(config.settings)
             # Plot training & validation loss values
             plt.plot(history.history['loss'])
             plt.plot(history.history['val_loss'])
@@ -113,17 +94,17 @@ if __name__ == '__main__':
     # load MLP model
     else:
         timestamp = [item.split('_')[-1].split('.')[0] for item in args.model.split('/') if 'mlp' in item][0]
-        # unfortunately the negExp is not saved but I can retrieve it from the logs
+        # unfortunately the negPunish is not saved but I can retrieve it from the logs
         logDic = json.load(open('data/modelConfig_'+timestamp+'.json'))
-        retValNegExp = logDic['negExp'] if 'negExp' in logDic.keys() else 1
+        retValNegPunish = logDic['negPunish'] if 'negPunish' in logDic.keys() else 1
 
-        mlp_model = tf.keras.models.load_model(args.model, custom_objects={'noOverestimateLossFunction':getNoOverestimateLossFunction(negExp=retValNegExp)})
+        mlp_model = tf.keras.models.load_model(args.model, custom_objects={'noOverestimateLossFunction':getNoOverestimateLossFunction(negPunish=retValNegPunish)})
         # print model summary
         mlp_model.summary()
 
     # predict on validation data
     print("Calculating validation predictions for %i points..." % len(valX))
-    pred_valY = mlp_model.predict(valDataset)
+    pred_valY = mlp_model.predict(valX)
 
     # that would be the test dataset - WIP
     if args.testData is not None:

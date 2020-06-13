@@ -1,3 +1,8 @@
+import tensorflow as tf
+import numpy as np
+import h5py, pandas
+import config
+
 @tf.function
 def process_csv_line(line):
     '''
@@ -7,13 +12,13 @@ def process_csv_line(line):
     # parse csv line
     fields = tf.io.decode_csv(line, [tf.constant([np.nan], dtype=tf.float32)] * 7)
     # first 3 fields are X,Y,Z. normalize them
-    position = tf.stack(fields[:3])/positionNormalisation
+    position = tf.stack(fields[:3])/config.positionNormalisation
     # next 3 fields are Xprime,Yprime,Zprime
     momentum = tf.stack(fields[3:-1])
     # stack and flatten them
     features = tf.reshape(tf.stack([position,momentum]), [-1])
     # last field is the length. normalize it.
-    length = tf.stack(fields[-1:])/lengthNormalisation
+    length = tf.stack(fields[-1:])/config.lengthNormalisation
     return features, length
 
 def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
@@ -52,22 +57,21 @@ def getG4Arrays(G4FilePath, split_input=False):
     return
         data_input, data_output: 1 x tf.Tensor. Input shape (i,6), output shape (i,1).
     '''
-    
     if '.hdf5' in G4FilePath:
         file = h5py.File(G4FilePath,'r')
         
-        X = np.array(file['default_ntuples']['B4']['x']['pages'])/positionNormalisation
-        Y = np.array(file['default_ntuples']['B4']['y']['pages'])/positionNormalisation
-        Z = np.array(file['default_ntuples']['B4']['z']['pages'])/positionNormalisation
+        X = np.array(file['default_ntuples']['B4']['x']['pages'])/config.positionNormalisation
+        Y = np.array(file['default_ntuples']['B4']['y']['pages'])/config.positionNormalisation
+        Z = np.array(file['default_ntuples']['B4']['z']['pages'])/config.positionNormalisation
         Xprime = np.array(file['default_ntuples']['B4']['dx']['pages'])
         Yprime = np.array(file['default_ntuples']['B4']['dy']['pages'])
         Zprime = np.array(file['default_ntuples']['B4']['dz']['pages'])
         L = np.array(file['default_ntuples']['B4']['distance']['pages'])
-        assert (np.any(L>lengthNormalisation)==False), "There are too large lengths in your dataset!"
+        assert (np.any(L>config.lengthNormalisation)==False), "There are too large lengths in your dataset!"
 
         data_input = tf.convert_to_tensor(np.column_stack((X,Y,Z,Xprime,Yprime,Zprime)))
         # a normalisation of the output is also happening
-        data_output = tf.convert_to_tensor(np.column_stack(L/lengthNormalisation).T)
+        data_output = tf.convert_to_tensor(np.column_stack(L/config.lengthNormalisation).T)
 
         return data_input, data_output
 
@@ -76,11 +80,11 @@ def getG4Arrays(G4FilePath, split_input=False):
         # to-do: I want to feed a wildcarded path here
         data = np.loadtxt(G4FilePath, delimiter=',', skiprows=15)
 
-        L = (data[:,6]/lengthNormalisation).reshape(data[:,6].size, 1)
-        if lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
+        L = (data[:,6]/config.lengthNormalisation).reshape(data[:,6].size, 1)
+        if config.lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
 
         # normalise X, Y, Z 
-        positions = data[:,:3]/positionNormalisation
+        positions = data[:,:3]/config.positionNormalisation
         # X', Y', Z'
         directions = data[:,3:6]
 
@@ -122,6 +126,6 @@ def getCustomArrays(pickleFile):
     # convert DataFrame to tf.Tensor
     train_data_input = tf.convert_to_tensor(train_data[['X','Y','Z','Xprime','Yprime','Zprime']].values)
     # a normalisation of the output might also happening
-    train_data_output = tf.convert_to_tensor(train_data[['L']].values/lengthNormalisation)
+    train_data_output = tf.convert_to_tensor(train_data[['L']].values/config.lengthNormalisation)
 
     return train_data_input, train_data_output

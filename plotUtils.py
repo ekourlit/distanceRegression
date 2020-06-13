@@ -176,7 +176,7 @@ class Plot:
         plt.hist2d(truth_length.reshape(len(truth_length),), pred_length.reshape(len(pred_length),), bins=(200,200), norm=mpl.colors.LogNorm())
         plt.grid()
         axis = plt.gca()
-        plt.plot([0,axis.get_xlim()[1]], [0,axis.get_ylim()[1]], c='r')
+        plt.plot([0,axis.get_xlim()[1]], [0,axis.get_xlim()[1]], c='r')
         axis.set_xlabel('Truth L')
         axis.set_ylabel('Predicted L')
         # save
