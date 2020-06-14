@@ -59,17 +59,22 @@ if __name__ == '__main__':
     # create MLP model
     if args.model is None:
 
+        # create a distributed strategy -- in principle this falls back to regular training when only 1 GPU is available
+        strategy = tf.distribute.MirroredStrategy()
+        availableGPUs = strategy.num_replicas_in_sync
+
         # get some data to train & validate on
         # load everything in memory
         trainX, trainY  = getG4Arrays(args.trainData)
-        trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
+        trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch']*availableGPUs)
 
         # get the DNN model
-        mlp_model = getSimpleMLP(config.settings['Structure'],
-                                 activation=config.settings['Activation'],
-                                 output_activation=config.settings['OutputActivation'],
-                                 loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
-                                 optimizer=eval(config.settings['Optimizer']+'('+str(config.settings['LearningRate'])+')', {'__builtins__':None}, config.dispatcher))
+        with strategy.scope():
+            mlp_model = getSimpleMLP(config.settings['Structure'],
+                                     activation=config.settings['Activation'],
+                                     output_activation=config.settings['OutputActivation'],
+                                     loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
+                                     optimizer=eval(config.settings['Optimizer']+'('+str(config.settings['LearningRate'])+')', {'__builtins__':None}, config.dispatcher))
 
         # fit model
         history = mlp_model.fit(trainDataset,
