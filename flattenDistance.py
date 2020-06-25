@@ -1,7 +1,13 @@
 #!/usr/bin/env python
-import argparse
+import argparse, matplotlib
 import pandas as pd
 import numpy as np
+
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+font = {'size':16}
+matplotlib.rc('font', **font)
+
 
 def flattenOmit(dataset, bins, lengthColumnName='L', outName='flatData.pkl'):
     """!
@@ -10,6 +16,13 @@ def flattenOmit(dataset, bins, lengthColumnName='L', outName='flatData.pkl'):
     bins: bins to use to flatten length distribution.
     """
     lengths = dataset[lengthColumnName]
+    fig, ax = plt.subplots()
+
+    plt.clf()
+    plt.hist(lengths, histtype='step', bins=bins)
+    ax.set_xlabel('Lengths')
+    plt.savefig('LengthsPre.pdf', bbox_inches='tight')
+        
     hist, binEdges = np.histogram(lengths, bins=bins)
     binIndeces = np.digitize(lengths, bins=bins)
     minBinContent = np.min(hist)
@@ -23,7 +36,13 @@ def flattenOmit(dataset, bins, lengthColumnName='L', outName='flatData.pkl'):
         dataInBin = binData.sample(n=minBinContent, random_state=1)
         newDataset = newDataset.append(dataInBin, ignore_index=True)
 
+    plt.clf()
+    plt.hist(newDataset[lengthColumnName], histtype='step', bins=bins)
+    ax.set_xlabel('Lengths')
+    plt.savefig('LengthsPost.pdf', bbox_inches='tight')
+        
     newDataset.to_pickle(outName)
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Flatten a distance distribution')
@@ -32,6 +51,8 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--inputType', type=str, default='pickle', choices=['pickle', 'csv'])
     parser.add_argument('-l', '--lengthName', type=str, default='L', help='Name of length column in input file.')
     parser.add_argument('-o', '--outName', type=str, default='flatData.pkl', help='Output file name')
+    parser.add_argument('--maxVal', type=float, default=1., help="Maximum length value")
+    parser.add_argument('--minVal', type=float, default=0., help="Minimum length value")
 
 
     args = parser.parse_args()
@@ -40,11 +61,9 @@ if __name__ == '__main__':
         dataset = pd.DataFrame(pd.read_pickle(args.inPath))
     else:
         dataset = pd.DataFrame(pd.read_csv(args.inPath))
-
-    minVal = np.min(dataset[args.lengthName]);
-    maxVal = np.max(dataset[args.lengthName]);
-    dx = (maxVal-minVal)/args.nbins
-    bins = [minVal+dx*i for i in range(args.nbins+1)]
-    print('minVal, maxVal, dx, dataset shape')
-    print(minVal, maxVal, dx, dataset.shape)
+    
+    dx = (args.maxVal-args.minVal)/args.nbins
+    bins = [args.minVal+dx*i for i in range(args.nbins+1)]
+    print('args.minVal, args.maxVal, dx, dataset shape')
+    print(args.minVal, args.maxVal, dx, dataset.shape)
     flattenOmit(dataset, bins, lengthColumnName=args.lengthName, outName=args.outName)
