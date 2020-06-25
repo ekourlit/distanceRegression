@@ -28,7 +28,7 @@ def flattenOmit(dataset, bins, lengthColumnName='L', outName='flatData.pkl'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Flatten a distance distribution')
     parser.add_argument('-i', '--inPath', type=str, help="Input file")
-    parser.add_argument('-m', '--nbins', type=int, default=50, help="number of bins")
+    parser.add_argument('-n', '--nbins', type=int, default=50, help="number of bins")
     parser.add_argument('-t', '--inputType', type=str, default='pickle', choices=['pickle', 'csv'])
     parser.add_argument('-l', '--lengthName', type=str, default='L', help='Name of length column in input file.')
     parser.add_argument('-o', '--outName', type=str, default='flatData.pkl', help='Output file name')
@@ -36,14 +36,15 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    minVal = 0.;
-    maxVal = 1;
-    dx = (maxVal-minVal)/args.nbins
-    bins = [minVal+dx*i for i in range(args.nbins+1)]
-
     if args.inputType == 'pickle':
         dataset = pd.DataFrame(pd.read_pickle(args.inPath))
     else:
         dataset = pd.DataFrame(pd.read_csv(args.inPath))
 
+    minVal = np.min(dataset[args.lengthName]);
+    maxVal = np.max(dataset[args.lengthName]);
+    dx = (maxVal-minVal)/args.nbins
+    bins = [minVal+dx*i for i in range(args.nbins+1)]
+    print('minVal, maxVal, dx, dataset shape')
+    print(minVal, maxVal, dx, dataset.shape)
     flattenOmit(dataset, bins, lengthColumnName=args.lengthName, outName=args.outName)
