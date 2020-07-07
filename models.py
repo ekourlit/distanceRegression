@@ -22,6 +22,20 @@ def getNoOverestimateLossFunction(negPunish=1.0):
         return totalLoss
 
     return noOverestimateLossFunction
+
+@tf.function
+def overestimationMetric(y_true, y_pred):
+    """
+    This is a metric to estimate the amount of overestimation.
+    Along with MAE can be used as an objective to the DH scans.
+    """
+    negIndex = ((y_true-y_pred) < 0)
+
+    overPred = tf.reduce_max(y_pred[negIndex]-y_true[negIndex])
+    # underPred = tf.reduce_mean(y_pred[~negIndex])
+    # ratio = overPred/underPred
+
+    return overPred
     
 def regression(inputShape, outputDim, savePath, outputAct, hiddenSpaceSize=[50], activations=['relu']):
     model = tf.keras.Sequential()
@@ -57,6 +71,31 @@ def getSimpleMLP(hiddenNodes, input_shape=6, **settings):
         loss=settings['loss'],
         optimizer=settings['optimizer'],
         metrics=['mae','mse'])
+
+    # print model summary
+    model.summary()
+    
+    return model
+
+def getSimpleMLP_DH(**config):
+    '''
+    Construct a fully connected MLP.
+    return
+        model: keras model
+    '''
+    
+    # construct
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.Dense(config['nodes'], input_shape=(6,), activation=config['activation'], kernel_initializer='he_uniform'))
+    for layer in range(1, config['num_layers']):
+        model.add(tf.keras.layers.Dense(config['nodes'], activation=config['activation'], kernel_initializer='he_uniform'))
+    model.add(tf.keras.layers.Dense(1, activation=config['output_activation'], kernel_initializer='he_uniform'))
+
+    # compile
+    model.compile(
+        loss=config['loss'],
+        optimizer=config['optimizer'],
+        metrics=['mae','mse', overestimationMetric])
 
     # print model summary
     model.summary()
