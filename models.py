@@ -4,9 +4,9 @@ from tensorflow.keras import layers
 def getNoOverestimateLossFunction(negPunish=1.0):
     @tf.function
     def noOverestimateLossFunction(y_true, y_pred):
-        """! 
+        """
         Hopefully this will prevent us from overestimating the boundary to the next volume.
-        !"""
+        """
 
         negIndex = ((y_true-y_pred) < 0)
         

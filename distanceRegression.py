@@ -2,7 +2,7 @@ import os,pdb,argparse,sys
 import tensorflow as tf
 from models import *
 from loadData import *
-from plotUtils import Plot
+from plotUtils import Plot,plotTrainingMetrics
 import pandas as pd
 import numpy as np
 import math
@@ -12,7 +12,7 @@ import h5py,csv,pickle
 import json
 from datetime import date,datetime
 from tensorflow.keras.optimizers import *
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping,LearningRateScheduler
 import config
 
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
@@ -37,6 +37,43 @@ def logConfiguration(dictionary):
     f.write(log)
     f.close()
 
+def expIncreaseTest(lr0):
+    ordersDiff = int(1e1/lr0)
+    def lexpIncreaseTest_fn(epoch):
+        return lr0 * math.exp(math.log(ordersDiff)/(config.settings['Epochs']-1)) ** epoch
+    return lexpIncreaseTest_fn
+
+def oneCycle(lr0, tailEpochPortion, maxFact, minFact):
+    # algorithm from arxiv 1803.09820
+    totalEpochs = int(config.settings['Epochs'])
+    # % of the epochs considered tailEpochs
+    tailEpoch = int(totalEpochs * tailEpochPortion)
+    halfEpoch = int((totalEpochs - tailEpoch) / 2)
+    # cycle increase lr by
+    lrMax = maxFact*lr0
+    # finally reduce it to
+    lrMinOrd = lr0/minFact
+    def oneCycle_fn(epoch):
+        # increase linearly until halfEpoch
+        if epoch <= halfEpoch:
+            r = (lrMax - lr0)/halfEpoch
+            lr = r * epoch + lr0
+            # print("lr1",lr)
+            return lr
+        # decrease linearly until totalEpochs-tailEpoch
+        elif epoch > halfEpoch and epoch < (totalEpochs-tailEpoch):
+            r = - (lr0 - lrMax)/(totalEpochs-tailEpoch-1-(halfEpoch+1))
+            lr = - r * (epoch-(halfEpoch+1)) + lrMax
+            # print("lr2",lr)
+            return lr
+        # decrease linearly until the end
+        else:
+            r = - (lrMinOrd - lr0)/(totalEpochs-1-(totalEpochs-tailEpoch))
+            lr = - r * (epoch - (totalEpochs-tailEpoch)) + lr0
+            # print("lr3",lr)
+            return lr
+    return oneCycle_fn
+
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
 parser.add_argument('--trainData', help='Train dataset.', required=False, default=None)
@@ -53,45 +90,47 @@ if __name__ == '__main__':
     if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
 
     # load the validation data, which are needed either you train or not
-    valX, valY  = getG4Arrays(args.trainData)
+    valX, valY  = getG4Arrays(args.validationData)
     valDataset = getDatasets(valX, valY)
 
     # create MLP model
     if args.model is None:
 
-        # create a distributed strategy -- in principle this falls back to regular training when only 1 GPU is available
-        strategy = tf.distribute.MirroredStrategy()
-        availableGPUs = strategy.num_replicas_in_sync
-
         # get some data to train & validate on
         # load everything in memory
         trainX, trainY  = getG4Arrays(args.trainData)
-        trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch']*availableGPUs)
+        trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
 
         # get the DNN model
-        with strategy.scope():
-            mlp_model = getSimpleMLP(config.settings['Structure'],
-                                     activation=config.settings['Activation'],
-                                     output_activation=config.settings['OutputActivation'],
-                                     loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
-                                     optimizer=eval(config.settings['Optimizer']+'('+str(config.settings['LearningRate'])+')', {'__builtins__':None}, config.dispatcher))
+        mlp_model = getSimpleMLP_DH(num_layers=config.settings['Layers'],
+                                    nodes=config.settings['Nodes'],
+                                    activation=config.settings['Activation'],
+                                    output_activation=config.settings['OutputActivation'],
+                                    loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
+                                    optimizer=eval(config.settings['Optimizer']+'('+str(config.settings['LearningRate'])+')', {'__builtins__':None}, config.dispatcher))
+
+        # get lr scheduler functions
+        expIncreaseTestFunc = expIncreaseTest(config.settings['LearningRate'])
+        oneCycleFunc = oneCycle(config.settings['LearningRate'], 0.1, 10, 100)
+
+        # callbacks
+        callbacks_list = [
+            # EarlyStopping(monitor='val_mae', min_delta=0.01, patience=5, restore_best_weights=True),
+            LearningRateScheduler(oneCycleFunc)
+            ]
 
         # fit model
         history = mlp_model.fit(trainDataset,
                                 epochs=config.settings['Epochs'],
                                 validation_data=valDataset,
-                                callbacks=[EarlyStopping(monitor='val_mae', patience=5, restore_best_weights=True)])
+                                callbacks=callbacks_list)
 
         # save model and print learning rate
         if not args.test: 
             mlp_model.save('data/mlp_model_'+timestamp+'.h5')
             logConfiguration(config.settings)
-            # Plot training & validation loss values
-            plt.plot(history.history['loss'])
-            plt.plot(history.history['val_loss'])
-            plt.ylabel('Loss (MSE)')
-            plt.xlabel('Epoch')
-            plt.legend(['Train', 'Validation'], loc='upper right')
+            # plot training
+            plotTrainingMetrics(history.history)            
             system('mkdir -p plots/'+today+'/'+timestamp)
             plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
             print("Trained model saved! Timestamp:", timestamp)
@@ -103,13 +142,16 @@ if __name__ == '__main__':
         logDic = json.load(open('data/modelConfig_'+timestamp+'.json'))
         retValNegPunish = logDic['negPunish'] if 'negPunish' in logDic.keys() else 1
 
-        mlp_model = tf.keras.models.load_model(args.model, custom_objects={'noOverestimateLossFunction':getNoOverestimateLossFunction(negPunish=retValNegPunish)})
+        mlp_model = tf.keras.models.load_model(args.model, 
+                                               custom_objects={'noOverestimateLossFunction':getNoOverestimateLossFunction(negPunish=retValNegPunish),
+                                                               'overestimationMetric':overestimationMetric})
         # print model summary
         mlp_model.summary()
 
     # predict on validation data
     print("Calculating validation predictions for %i points..." % len(valX))
     pred_valY = mlp_model.predict(valX)
+    pred_trainY = mlp_model.predict(trainX)
 
     # that would be the test dataset - WIP
     if args.testData is not None:
@@ -122,8 +164,9 @@ if __name__ == '__main__':
     # plot
     if args.plots: 
         validationPlots = Plot('validation', timestamp, truth=valY, prediction=pred_valY)
-        # trainPlots = Plot('training', timestamp, inputFeatures=trainX.numpy(), truth=trainY.numpy())
         validationPlots.plotPerformance()
+        trainPlots = Plot('training', timestamp, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
         # trainPlots.plotInputs()
+        trainPlots.plotPerformance()
     
     print("Done!")
