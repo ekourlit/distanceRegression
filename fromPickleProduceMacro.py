@@ -37,6 +37,13 @@ def produceMacro(inFName='3Ddata.pickle', outFName='run', maxEventsPerFile=10000
             outText = ""
             fCounter+=1
 
+    # Write the remainder out
+    outF = open(outFName+'_'+str(fCounter)+'.mac', 'w')
+    outF.write("/run/initialize\n\n")
+    outF.write(outText)
+    outF.close()
+    outText = ""
+    fCounter+=1
     
     fig, ax = plt.subplots()
     for label in dataset.keys():
@@ -50,6 +57,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Produce a G4 macro that will be able to produce geometric info needed to train an NN.')
     parser.add_argument('inF', help="Input file name.")
     parser.add_argument('--outFName', default='run', help="Output file name.")
+    parser.add_argument('--maxEventsPerFile', type=int, default=100000, help="Maximum number of events per output file")
     args = parser.parse_args()
     
-    produceMacro(inFName=args.inF, outFName=args.outFName)
+    produceMacro(inFName=args.inF, outFName=args.outFName, maxEventsPerFile=args.maxEventsPerFile)
