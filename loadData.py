@@ -81,12 +81,12 @@ def getG4Arrays(G4FilePath, split_input=False):
     else:
         # path or wildcarded files
         if not os.path.isfile(G4FilePath):
-            arrays = [np.loadtxt(file, delimiter=',', skiprows=15) for file in glob.glob(G4FilePath)]
+            arrays = [np.loadtxt(file, delimiter=',', skiprows=12) for file in glob.glob(G4FilePath)]
             data = np.concatenate(arrays)
 
         # single file
         else:
-            data = np.loadtxt(G4FilePath, delimiter=',', skiprows=15)
+            data = np.loadtxt(G4FilePath, delimiter=',', skiprows=12)
 
         L = (data[:,6]/config.lengthNormalisation).reshape(data[:,6].size, 1)
         if config.lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
