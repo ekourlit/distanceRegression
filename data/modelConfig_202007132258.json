@@ -1,0 +1,1 @@
+{"Description": "simple sequential feed-forward network to estimate the distance to the surface of a unit sphere", "Layers": 4, "Nodes": 400, "Activation": "relu", "OutputActivation": "relu", "Loss": "getNoOverestimateLossFunction", "negPunish": 8.0, "Optimizer": "Adam", "LearningRate": 1e-05, "Batch": 3000, "Epochs": 200}

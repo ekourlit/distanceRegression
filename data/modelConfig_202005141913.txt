@@ -1,1 +1,0 @@
-{'Structure': [128, 128, 128], 'Optimizer': <tensorflow.python.keras.optimizer_v2.adam.Adam object at 0x7fe0f7627750>, 'Activation': 'relu', 'OutputActivation': 'relu', 'Loss': 'mse', 'Batch': 128, 'Epochs': 50}
