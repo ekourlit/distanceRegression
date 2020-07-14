@@ -6,6 +6,36 @@ from datetime import date
 today = str(date.today())
 import pdb
 
+def plotTrainingMetrics(history):
+
+    loss = history['loss']
+    val_loss = history['val_loss']
+    lr = history['lr']
+    mae = history['mae']
+    val_mae = history['val_mae']
+
+    fig, ax1 = plt.subplots()
+
+    # color = 'tab:red'
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Loss/MAE')
+    ax1.plot(loss)
+    ax1.plot(val_loss)
+    ax1.plot(mae)
+    ax1.plot(val_mae)
+    # ax1.tick_params(axis='y', labelcolor=color)
+    plt.legend(['Train Loss', 'Validation Loss', 'MAE', 'Validation MAE'], loc='upper right')
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = 'tab:cyan'
+    ax2.set_ylabel('Learning Rate', color=color)
+    ax2.plot(lr, color=color, alpha=0.6)
+    ax2.set_yscale('log')
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    fig.tight_layout()
+
 class Plot:
     """
     This is a class for creating plot objects. 
