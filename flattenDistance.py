@@ -60,7 +60,7 @@ if __name__ == '__main__':
     if args.inputType == 'pickle':
         dataset = pd.DataFrame(pd.read_pickle(args.inPath))
     else:
-        dataset = pd.DataFrame(pd.read_csv(args.inPath))
+        dataset = pd.DataFrame(pd.read_csv(args.inPath, skiprows=11, names=['x','y','z','xp','yp','zp', 'L']))
     
     dx = (args.maxVal-args.minVal)/args.nbins
     bins = [args.minVal+dx*i for i in range(args.nbins+1)]
