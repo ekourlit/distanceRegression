@@ -13,4 +13,4 @@
 # electron 50 MeV in direction (0.,0.,1.)
 # 1 event with tracking/verbose
 #
-/run/beamOn 10000000
+/run/beamOn 200000000
