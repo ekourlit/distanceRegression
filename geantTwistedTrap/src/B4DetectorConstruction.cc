@@ -112,7 +112,7 @@ void B4DetectorConstruction::DefineMaterials()
 G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
 {
   // Geometry parameters
-  G4double calorSizeXY  = 2*mm;
+  G4double calorSizeXY  = 4*mm;
 
   auto worldSizeXY = 1. * calorSizeXY;
   auto worldSizeZ  = 1. * calorSizeXY; 
@@ -157,12 +157,12 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
   // Calorimeter
   //  
   auto calorimeterS
-	  = new G4TwistedTrap("Calorimeter",
-                          70*deg,
-                          calorSizeXY/2,  // half x length at -pDz,-pDy
+	  = new G4TwistedTrap("CalorimeterTwistedTrap",
+                          20*deg,
+                          calorSizeXY/4,  // half x length at -pDz,-pDy
                           calorSizeXY/4,  // half x length at -pDz,+pDy
                           calorSizeXY/4,
-                          calorSizeXY/2);
+                          calorSizeXY/4);
     // = new G4Sphere("Calorimeter",       // its name
     //                0.0*mm,              // inner radius (for hollow geometries)
     //                calorSizeXY/2,       // outer radius

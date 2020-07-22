@@ -62,6 +62,8 @@ B4RunAction::B4RunAction(int nBins, float minValHist, float maxValHist, float al
   analysisManager->SetNtupleDirectoryName("ntuple");
   // Hardcoding the bounds is a bad idea.
   G4String histName = "lengthHist_"+seedS;
+  std::cout << "fNBins is " << fNBins << "\n";
+
   analysisManager->CreateH1(histName,histName, fNBins, fMinValHist, fMaxValHist);
 
   //analysisManager->SetVerboseLevel(1);

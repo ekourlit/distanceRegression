@@ -47,7 +47,6 @@ B4PrimaryGeneratorAction::B4PrimaryGeneratorAction()
 	: G4VUserPrimaryGeneratorAction(),
 	  fParticleGun(nullptr)
 {
-  
 	G4int nofParticles = 1;
 	fParticleGun = new G4ParticleGun(nofParticles);
 
@@ -69,17 +68,17 @@ B4PrimaryGeneratorAction::~B4PrimaryGeneratorAction()
 
 void B4PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
-	float fXMin = 0;
-	float fXMax = 10000; // CHANGE THIS
-	float fYMin = 0;
-	float fYMax = 10000; // CHANGE THIS
-	float fZMin = 0;
-	float fZMax = 10000; // CHANGE THIS
+	float fXMin = -1.41421;
+	float fXMax = 1.41421; 
+	float fYMin = -1.41421;
+	float fYMax = 1.41421; 
+	float fZMin = -1;
+	float fZMax = 1;
 	
 	float xLength = fabs(fXMax-fXMin);
 	float yLength = fabs(fYMax-fYMin);
 	float zLength = fabs(fZMax-fZMin);
-  
+
 	float x, y, z, dx, dy, dz;
 	x = fXMin+G4UniformRand()*xLength;
 	y = fYMin+G4UniformRand()*yLength;
@@ -89,7 +88,7 @@ void B4PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	dy = G4UniformRand();
 	dz = G4UniformRand();
   
-	fParticleGun->SetParticlePosition(position);
+	fParticleGun->SetParticlePosition(G4ThreeVector(x,y,z));
 	fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dx,dy,dz));
 	fParticleGun->GeneratePrimaryVertex(anEvent);
 }
