@@ -117,7 +117,7 @@ if __name__ == '__main__':
 		i += 1
 		if i%(args.sampleSize/100) == 0: print("Point number %i" % i)
 
-		line = Line(P, P0)
+		line = Line(P0, P)
 		# line direction vector and its unit vector
 		u = getLineDirection(line)
 		u_hat = u/np.linalg.norm(u)

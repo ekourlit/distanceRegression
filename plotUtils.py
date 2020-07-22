@@ -6,6 +6,36 @@ from datetime import date
 today = str(date.today())
 import pdb
 
+def plotTrainingMetrics(history):
+
+    loss = history['loss']
+    val_loss = history['val_loss']
+    lr = history['lr']
+    mae = history['mae']
+    val_mae = history['val_mae']
+
+    fig, ax1 = plt.subplots()
+
+    # color = 'tab:red'
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Loss/MAE')
+    ax1.plot(loss)
+    ax1.plot(val_loss)
+    ax1.plot(mae)
+    ax1.plot(val_mae)
+    # ax1.tick_params(axis='y', labelcolor=color)
+    plt.legend(['Train Loss', 'Validation Loss', 'MAE', 'Validation MAE'], loc='upper right')
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = 'tab:cyan'
+    ax2.set_ylabel('Learning Rate', color=color)
+    ax2.plot(lr, color=color, alpha=0.6)
+    ax2.set_yscale('log')
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    fig.tight_layout()
+
 class Plot:
     """
     This is a class for creating plot objects. 
@@ -85,6 +115,19 @@ class Plot:
         plt.savefig(savename)
         print("Plot\t::\t"+savename+" saved!")
 
+        if self.truth is None:
+            print("Plot\t::\t Truth L is not defined. Skip plotting.")
+        else:
+            # plot L too
+            plt.clf()
+            plt.hist(self.truth, bins=100)
+            axis = plt.gca()
+            axis.set_xlabel(xlabel='L')
+            # save
+            savename = self.saveDir+'/'+self.name+'_length.pdf'
+            plt.savefig(savename)
+            print("Plot\t::\t"+savename+" saved!")
+
     def plotPerformance(self):
         '''
         Produce a set of performance plots
@@ -163,6 +206,7 @@ class Plot:
         plt.hist2d(truth_length.reshape(len(truth_length),), pred_length.reshape(len(pred_length),), bins=(200,200), norm=mpl.colors.LogNorm())
         plt.grid()
         axis = plt.gca()
+        plt.plot([0,axis.get_xlim()[1]], [0,axis.get_xlim()[1]], c='r')
         axis.set_xlabel('Truth L')
         axis.set_ylabel('Predicted L')
         # save
@@ -172,12 +216,13 @@ class Plot:
         print("Plot\t::\t"+savename+" saved!")
 
         # ###
-        # hist2d Error vs Truth
+        # hist2d Truth vs Error
         # ###
         plt.clf()
         h = plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(50,50),  norm=mpl.colors.LogNorm())
         plt.colorbar(h[3])
         axis = plt.gca()
+        plt.plot([axis.get_xlim()[0],axis.get_xlim()[1]], [0,0], c='r')
         axis.set_xlabel('Truth L')
         axis.set_ylabel('Truth L - Predicted L')
         # save
