@@ -13,7 +13,7 @@ ncores=2
 for (( nodeI=0; nodeI<$SLURM_JOB_NUM_NODES; nodeI++ ))
 do
 	startSeed=$(( $nodeI * $ncores ))
-	endSeed=$(( $nodeI + $ncores ))
+	endSeed=$(( $startSeed + $ncores ))
     srun -N1 -c $ncores -n1 singularity exec /home/whopkins/fullsim-sources-geant4-v10.6.2.img /home/whopkins/geant4/examples/basic/B4/build/wrapper.sh $startSeed $endSeed 200 >& logs/log_startseed_${startSeed}.txt &
 done;
 
