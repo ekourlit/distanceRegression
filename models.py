@@ -1,5 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras import layers
+import math
+
+# # # # # # # # # # # # # # # 
+# Loss & Objective Functions
+# # # # # # # # # # # # # # # 
 
 def getNoOverestimateLossFunction(negPunish=1.0):
     @tf.function
@@ -16,6 +21,7 @@ def getNoOverestimateLossFunction(negPunish=1.0):
 
         # punish by weight
         negLoss = tf.reduce_mean(tf.square(y_true[negIndex]-y_pred[negIndex]))
+        # negLoss = tf.reduce_mean(tf.abs(y_true[negIndex]-y_pred[negIndex])) # this is interesting, it almost disappears the overestimation but increase the overall MAE. maybe with some optimization I can make it work.
         posLoss = tf.reduce_mean(tf.square(y_true[~negIndex]-y_pred[~negIndex]))
         totalLoss = negPunish*negLoss+posLoss
 
@@ -36,6 +42,55 @@ def overestimationMetric(y_true, y_pred):
     # ratio = overPred/underPred
 
     return overPred
+
+# # # # # # # # # # # # # # # # # # # 
+# Learning Rate Scheduling Functions
+# # # # # # # # # # # # # # # # # # # 
+
+import config
+
+def expIncreaseTest(lr0):
+    ordersDiff = int(1e1/lr0)
+    def lexpIncreaseTest_fn(epoch):
+        return lr0 * math.exp(math.log(ordersDiff)/(config.settings['Epochs']-1)) ** epoch
+    return lexpIncreaseTest_fn
+
+def oneCycle(lr0, tailEpochPortion, maxFact, minFact):
+    # algorithm from arxiv 1803.09820
+    totalEpochs = int(config.settings['Epochs'])
+    # % of the epochs considered tailEpochs
+    tailEpoch = int(totalEpochs * tailEpochPortion)
+    halfEpoch = int((totalEpochs - tailEpoch) / 2)
+    # cycle increase lr by
+    lrMax = maxFact*lr0
+    # finally reduce it to
+    lrMinOrd = lr0/minFact
+
+    # @tf.function
+    def oneCycle_fn(epoch):
+        # increase linearly until halfEpoch
+        if epoch <= halfEpoch:
+            r = (lrMax - lr0)/halfEpoch
+            lr = r * epoch + lr0
+            # print("lr1",lr)
+            return lr
+        # decrease linearly until totalEpochs-tailEpoch
+        elif epoch > halfEpoch and epoch < (totalEpochs-tailEpoch):
+            r = - (lr0 - lrMax)/(totalEpochs-tailEpoch-1-(halfEpoch+1))
+            lr = - r * (epoch-(halfEpoch+1)) + lrMax
+            # print("lr2",lr)
+            return lr
+        # decrease linearly until the end
+        else:
+            r = - (lrMinOrd - lr0)/(totalEpochs-1-(totalEpochs-tailEpoch))
+            lr = - r * (epoch - (totalEpochs-tailEpoch)) + lr0
+            # print("lr3",lr)
+            return lr
+    return oneCycle_fn
+
+# # # # # # # # # # # # 
+# Neural Network Models
+# # # # # # # # # # # # 
     
 def regression(inputShape, outputDim, savePath, outputAct, hiddenSpaceSize=[50], activations=['relu']):
     model = tf.keras.Sequential()

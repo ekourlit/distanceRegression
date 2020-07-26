@@ -5,7 +5,6 @@ from loadData import *
 from plotUtils import Plot,plotTrainingMetrics
 import pandas as pd
 import numpy as np
-import math
 from matplotlib import pyplot as plt
 from os import system
 import h5py,csv,pickle
@@ -37,43 +36,6 @@ def logConfiguration(dictionary):
     f.write(log)
     f.close()
 
-def expIncreaseTest(lr0):
-    ordersDiff = int(1e1/lr0)
-    def lexpIncreaseTest_fn(epoch):
-        return lr0 * math.exp(math.log(ordersDiff)/(config.settings['Epochs']-1)) ** epoch
-    return lexpIncreaseTest_fn
-
-def oneCycle(lr0, tailEpochPortion, maxFact, minFact):
-    # algorithm from arxiv 1803.09820
-    totalEpochs = int(config.settings['Epochs'])
-    # % of the epochs considered tailEpochs
-    tailEpoch = int(totalEpochs * tailEpochPortion)
-    halfEpoch = int((totalEpochs - tailEpoch) / 2)
-    # cycle increase lr by
-    lrMax = maxFact*lr0
-    # finally reduce it to
-    lrMinOrd = lr0/minFact
-    def oneCycle_fn(epoch):
-        # increase linearly until halfEpoch
-        if epoch <= halfEpoch:
-            r = (lrMax - lr0)/halfEpoch
-            lr = r * epoch + lr0
-            # print("lr1",lr)
-            return lr
-        # decrease linearly until totalEpochs-tailEpoch
-        elif epoch > halfEpoch and epoch < (totalEpochs-tailEpoch):
-            r = - (lr0 - lrMax)/(totalEpochs-tailEpoch-1-(halfEpoch+1))
-            lr = - r * (epoch-(halfEpoch+1)) + lrMax
-            # print("lr2",lr)
-            return lr
-        # decrease linearly until the end
-        else:
-            r = - (lrMinOrd - lr0)/(totalEpochs-1-(totalEpochs-tailEpoch))
-            lr = - r * (epoch - (totalEpochs-tailEpoch)) + lr0
-            # print("lr3",lr)
-            return lr
-    return oneCycle_fn
-
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
 parser.add_argument('--trainData', help='Train dataset.', required=False, default=None)
@@ -101,13 +63,21 @@ if __name__ == '__main__':
         trainX, trainY  = getG4Arrays(args.trainData)
         trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
 
+        # get the optimizer
+        myOptimizer = eval(config.settings['Optimizer']+'('+
+            'learning_rate='+str(config.settings['LearningRate'])+','+
+            'beta_1='+str(config.settings['b1'])+','+
+            'beta_2='+str(config.settings['b2'])+','+
+            'amsgrad='+str(config.settings['Amsgrad'])+')'
+            ,{'__builtins__':None}, config.dispatcher)
+
         # get the DNN model
         mlp_model = getSimpleMLP_DH(num_layers=config.settings['Layers'],
                                     nodes=config.settings['Nodes'],
                                     activation=config.settings['Activation'],
                                     output_activation=config.settings['OutputActivation'],
                                     loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
-                                    optimizer=eval(config.settings['Optimizer']+'('+str(config.settings['LearningRate'])+')', {'__builtins__':None}, config.dispatcher))
+                                    optimizer=myOptimizer)
 
         # get lr scheduler functions
         expIncreaseTestFunc = expIncreaseTest(config.settings['LearningRate'])
@@ -151,7 +121,7 @@ if __name__ == '__main__':
     # predict on validation data
     print("Calculating validation predictions for %i points..." % len(valX))
     pred_valY = mlp_model.predict(valX)
-    pred_trainY = mlp_model.predict(trainX)
+    # pred_trainY = mlp_model.predict(trainX)
 
     # that would be the test dataset - WIP
     if args.testData is not None:
@@ -165,8 +135,8 @@ if __name__ == '__main__':
     if args.plots: 
         validationPlots = Plot('validation', timestamp, truth=valY, prediction=pred_valY)
         validationPlots.plotPerformance()
-        trainPlots = Plot('training', timestamp, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
+        # trainPlots = Plot('training', timestamp, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
         # trainPlots.plotInputs()
-        trainPlots.plotPerformance()
+        # trainPlots.plotPerformance()
     
     print("Done!")

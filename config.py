@@ -22,9 +22,12 @@ settings = {
     'Activation'        :    'relu',
     'OutputActivation'  :    'relu',
     'Loss'              :    'getNoOverestimateLossFunction', #getNoOverestimateLossFunction #mae #mse
-    'negPunish'         :    8.0, # only for noOverestimateLossFunction
+    'negPunish'         :    7.0, # only for noOverestimateLossFunction
     'Optimizer'         :    'Adam',
     'LearningRate'      :    1e-5,
+    'b1'                :    0.9,
+    'b2'                :    0.999,
+    'Amsgrad'           :    'false',
     'Batch'             :    3000,
     'Epochs'            :    200
 }
