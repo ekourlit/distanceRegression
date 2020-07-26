@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH -p hepd
+##SBATCH -p knlall
+##SBATCH -p bdwall
+#SBATCH --job-name=g4Twisted
+#SBATCH -N 2
+##SBATCH -A ATLAS-HEP-group
+#SBATCH -A condo
+#SBATCH -o logs/twistedTrap.%j.%N.out
+#SBATCH -e logs/twistedTrap.%j.%N.error
+#SBATCH --time=6:00:00
+#SBATCH --ntasks-per-node=36
+ncores=36
+for (( nodeI=0; nodeI<$SLURM_JOB_NUM_NODES; nodeI++ ))
+do
+	startSeed=$(( $nodeI * $ncores ))
+	endSeed=$(( $startSeed + $ncores ))
+	echo $startSeed $endSeed
+    srun -N1 -c $ncores -n1 singularity exec /home/whopkins/fullsim-sources-geant4-v10.6.2.img /home/whopkins/distanceRegression/geantTwistedTrap/build/wrapper.sh $startSeed $endSeed 320 >& logs/log_startseed_${startSeed}.txt &
+	
+done;
+
+wait
