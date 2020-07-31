@@ -39,8 +39,9 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4RunAction::B4RunAction(int nBins, float minValHist, float maxValHist, float allowedDiff, long seed)
+B4RunAction::B4RunAction(bool flatL, int nBins, float minValHist, float maxValHist, float allowedDiff, long seed)
 	: G4UserRunAction(),
+	  fFlatL(flatL),
 	  fNBins(nBins),
 	  fMinValHist(minValHist),
 	  fMaxValHist(maxValHist),

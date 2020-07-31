@@ -59,10 +59,10 @@ G4GlobalMagFieldMessenger* B4DetectorConstruction::fMagFieldMessenger = nullptr;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4DetectorConstruction::B4DetectorConstruction()
+B4DetectorConstruction::B4DetectorConstruction(G4double reduction, G4int nNested)
  : G4VUserDetectorConstruction(),
-   fAbsorberPV(nullptr),
-   fGapPV(nullptr),
+   fReduction(reduction),
+   fNNested(nNested),
    fCheckOverlaps(true)
 {
 }
@@ -155,14 +155,19 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
   
   //                               
   // Calorimeter
-  //  
+  //
+  
+  G4double pDx1 = (calorSizeXY*0.6)/2;
+  G4double pDx2 = (calorSizeXY*0.3)/4;
+  G4double pDy = calorSizeXY/4;
+  G4double pDz = calorSizeXY/2;
   auto calorimeterS
 	  = new G4TwistedTrap("CalorimeterTwistedTrap",
                           60*deg,
-                          (calorSizeXY*0.6)/2,  // half x length at -pDz,-pDy
-                          (calorSizeXY*0.3)/4,  // half x length at -pDz,+pDy
-                          calorSizeXY/4,  // half y
-                          calorSizeXY/2); // half z
+                          pDx1,  // half x length at -pDz,-pDy
+                          pDx2,  // half x length at -pDz,+pDy
+                          pDy,  // half y
+                          pDz); // half z
 
   auto calorLV
     = new G4LogicalVolume(
@@ -180,31 +185,42 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
                  0,                // copy number
                  fCheckOverlaps);  // checking overlaps
 
-  auto InnerCalorimeterS
-    = new G4TwistedTrap("InnerCalorimeterTwistedTrap",
-                          30*deg,
-                          (calorSizeXY*0.3)/2,  // half x length at -pDz,-pDy
-                          (calorSizeXY*0.15)/4, // half x length at -pDz,+pDy
-                          calorSizeXY/8,        // half y
-                          calorSizeXY/2);       // half z
+  G4double twistAng = 30;
+  auto motherVol = calorLV;
+  for (int nestI = 0; nestI < fNNested; nestI++ ){
+	  std::string trapName = "InnerCalorimeterTwistedTrap"+std::to_string(nestI);
+	  std::string logicalTrapName = "InnerCalorimeter"+std::to_string(nestI);
 
-  auto InnerCalorLV
-    = new G4LogicalVolume(
-                 InnerCalorimeterS,     // its solid
-                 defaultMaterial,       // its material
-                 "InnerCalorimeter");   // its name
+	  pDx1 *= fReduction;
+	  pDx2 *= fReduction;
+	  pDy *= fReduction;
+	  pDz *= fReduction;
+
+	  auto InnerCalorimeterS
+		  = new G4TwistedTrap(trapName,
+		                      twistAng*deg,
+		                      pDx1,  // half x length at -pDz,-pDy
+		                      pDx2,  // half x length at -pDz,+pDy
+		                      pDy,  // half y
+		                      pDz); // half z
+
+	  auto InnerCalorLV
+		  = new G4LogicalVolume(
+		                        InnerCalorimeterS,     // its solid
+		                        defaultMaterial,       // its material
+		                        logicalTrapName);   // its name
                                    
-  new G4PVPlacement(
-                 0,                   // no rotation
-                 G4ThreeVector(),     // at (0,0,0)
-                 InnerCalorLV,        // its logical volume                         
-                 "InnerCalorimeter",  // its name
-                 calorLV,             // its mother  volume
-                 false,               // no boolean operation
-                 0,                   // copy number
-                 fCheckOverlaps);     // checking overlaps
-  
-  
+	  new G4PVPlacement(
+	                    0,                   // no rotation
+	                    G4ThreeVector(),     // at (0,0,0)
+	                    InnerCalorLV,        // its logical volume                         
+	                    logicalTrapName,  // its name
+	                    motherVol,             // its mother  volume
+	                    false,               // no boolean operation
+	                    0,                   // copy number
+	                    fCheckOverlaps);     // checking overlaps
+	  motherVol = InnerCalorLV;
+  }
   //                                        
   // Visualization attributes
   //

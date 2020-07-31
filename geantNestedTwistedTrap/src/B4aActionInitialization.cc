@@ -37,9 +37,10 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 B4aActionInitialization::B4aActionInitialization
-(B4DetectorConstruction* detConstruction, int nBins, float minValHist, float maxValHist, float allowedDiff, long seed)
+(B4DetectorConstruction* detConstruction, bool flatL, int nBins, float minValHist, float maxValHist, float allowedDiff, long seed)
  : G4VUserActionInitialization(),
    fDetConstruction(detConstruction),
+   fFlatL(flatL),
    fNBins(nBins),
    fMinValHist(minValHist),
    fMaxValHist(maxValHist),
@@ -56,7 +57,7 @@ B4aActionInitialization::~B4aActionInitialization()
 
 void B4aActionInitialization::BuildForMaster() const
 {
-	SetUserAction(new B4RunAction(fNBins, fMinValHist, fMaxValHist, fAllowedDiff, fSeed));
+	SetUserAction(new B4RunAction(fFlatL, fNBins, fMinValHist, fMaxValHist, fAllowedDiff, fSeed));
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -64,7 +65,7 @@ void B4aActionInitialization::BuildForMaster() const
 void B4aActionInitialization::Build() const
 {
   SetUserAction(new B4PrimaryGeneratorAction);
-  auto runAction = new B4RunAction(fNBins, fMinValHist, fMaxValHist, fAllowedDiff, fSeed);
+  auto runAction = new B4RunAction(fFlatL, fNBins, fMinValHist, fMaxValHist, fAllowedDiff, fSeed);
   SetUserAction(runAction);
   auto eventAction = new B4aEventAction;
   SetUserAction(eventAction);
