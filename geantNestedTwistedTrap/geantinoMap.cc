@@ -74,8 +74,8 @@ int main(int argc,char** argv)
   double reduction = 0.5;
   int nNested = 1;
   bool flatL = false;
+  G4String outFName = "default"; 
 
-  
   G4String nBinsS;
   G4String minValS;
   G4String maxValS;
@@ -100,6 +100,7 @@ int main(int argc,char** argv)
     else if ( G4String(argv[i]) == "--reduction" ) {reductionS = argv[i+1]; reduction = G4UIcommand::ConvertToDouble(reductionS);}
     else if ( G4String(argv[i]) == "--nNested" ) {nNestedS = argv[i+1]; nNested = G4UIcommand::ConvertToInt(nNestedS);}
     else if ( G4String(argv[i]) == "-f" ) {flatLS = argv[i+1]; flatL = G4UIcommand::ConvertToBool(flatLS);}
+    else if ( G4String(argv[i]) == "-o" ) outFName = argv[i+1]; 
 
 #ifdef G4MULTITHREADED
     else if ( G4String(argv[i]) == "-t" ) {
@@ -138,7 +139,7 @@ int main(int argc,char** argv)
   auto physicsList = new FTFP_BERT;
   runManager->SetUserInitialization(physicsList);
     
-  auto actionInitialization = new B4aActionInitialization(detConstruction, flatL, nBins, minVal, maxVal, allowedDiff, seed);
+  auto actionInitialization = new B4aActionInitialization(detConstruction, flatL, nBins, minVal, maxVal, allowedDiff, seed, outFName);
   runManager->SetUserInitialization(actionInitialization);
   
   // Get the pointer to the User Interface manager
