@@ -1,5 +1,8 @@
 import os,pdb,argparse,sys
 import tensorflow as tf
+#tf.config.threading.set_inter_op_parallelism_threads(36)
+import os
+
 from models import *
 from loadData import *
 from plotUtils import Plot,plotTrainingMetrics
@@ -13,6 +16,8 @@ from datetime import date,datetime
 from tensorflow.keras.optimizers import *
 from tensorflow.keras.callbacks import EarlyStopping,LearningRateScheduler
 import config
+
+from sklearn.model_selection import train_test_split
 
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
 today = str(date.today())
@@ -38,8 +43,10 @@ def logConfiguration(dictionary):
 
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
+parser.add_argument('--trainValData', help='Train dataset.', required=False, default=None)
+parser.add_argument('--valFrac', help='Fraction of data to be used for validation', type=float, required=False, default=0.2)
 parser.add_argument('--trainData', help='Train dataset.', required=False, default=None)
-parser.add_argument('--validationData', help='Train dataset.', required=True)
+parser.add_argument('--validationData', help='Train dataset.', required=False)
 parser.add_argument('--testData', help='Test dataset.', required=False)
 parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
 parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None, required=False)
@@ -51,59 +58,68 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
 
-    # load the validation data, which are needed either you train or not
-    valX, valY  = getG4Arrays(args.validationData)
+    
+    if args.trainValData:
+      trainValData = args.trainValData.replace("\"", "")
+      print(trainValData)
+      dataX, dataY = getG4Arrays(trainValData)
+      trainX, valX, trainY, valY = train_test_split(dataX, dataY, test_size=args.valFrac, random_state=42)
+    else:
+      # load the validation data, which are needed either you train or not
+      valX, valY  = getG4Arrays(args.validationData)
+      
     valDataset = getDatasets(valX, valY)
 
     # create MLP model
     if args.model is None:
-
         # get some data to train & validate on
         # load everything in memory
+      if not args.trainValData:
         trainX, trainY  = getG4Arrays(args.trainData)
-        trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
+        
+      trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
 
         # get the optimizer
-        myOptimizer = eval(config.settings['Optimizer']+'('+
+      myOptimizer = eval(config.settings['Optimizer']+'('+
             'learning_rate='+str(config.settings['LearningRate'])+','+
             'beta_1='+str(config.settings['b1'])+','+
             'beta_2='+str(config.settings['b2'])+','+
             'amsgrad='+str(config.settings['Amsgrad'])+')'
             ,{'__builtins__':None}, config.dispatcher)
+        
+      # get the DNN model
+      mlp_model = getSimpleMLP_DH(num_layers=config.settings['Layers'],
+                                  nodes=config.settings['Nodes'],
+                                  activation=config.settings['Activation'],
+                                  output_activation=config.settings['OutputActivation'],
+                                  loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
+                                  optimizer=myOptimizer)
 
-        # get the DNN model
-        mlp_model = getSimpleMLP_DH(num_layers=config.settings['Layers'],
-                                    nodes=config.settings['Nodes'],
-                                    activation=config.settings['Activation'],
-                                    output_activation=config.settings['OutputActivation'],
-                                    loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
-                                    optimizer=myOptimizer)
+      # get lr scheduler functions
+      expIncreaseTestFunc = expIncreaseTest(config.settings['LearningRate'])
+      oneCycleFunc = oneCycle(config.settings['LearningRate'], 0.1, 10, 100)
 
-        # get lr scheduler functions
-        expIncreaseTestFunc = expIncreaseTest(config.settings['LearningRate'])
-        oneCycleFunc = oneCycle(config.settings['LearningRate'], 0.1, 10, 100)
+      # callbacks
+      callbacks_list = [
+          # EarlyStopping(monitor='val_mae', min_delta=0.01, patience=5, restore_best_weights=True),
+          LearningRateScheduler(oneCycleFunc)
+          ]
 
-        # callbacks
-        callbacks_list = [
-            # EarlyStopping(monitor='val_mae', min_delta=0.01, patience=5, restore_best_weights=True),
-            LearningRateScheduler(oneCycleFunc)
-            ]
+      # fit model
+      history = mlp_model.fit(trainDataset,
+                              epochs=config.settings['Epochs'],
+                              validation_data=valDataset,
+                              callbacks=callbacks_list)
 
-        # fit model
-        history = mlp_model.fit(trainDataset,
-                                epochs=config.settings['Epochs'],
-                                validation_data=valDataset,
-                                callbacks=callbacks_list)
-
-        # save model and print learning rate
-        if not args.test: 
-            mlp_model.save('data/mlp_model_'+timestamp+'.h5')
-            logConfiguration(config.settings)
-            # plot training
-            plotTrainingMetrics(history.history)            
-            system('mkdir -p plots/'+today+'/'+timestamp)
-            plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
-            print("Trained model saved! Timestamp:", timestamp)
+      # save model and print learning rate
+      if not args.test: 
+          mlp_model.save('data/mlp_model_'+timestamp+'.h5')
+          logConfiguration(config.settings)
+          # plot training
+          plotTrainingMetrics(history.history)            
+          system('mkdir -p plots/'+today+'/'+timestamp)
+          plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
+          print("Trained model saved! Timestamp:", timestamp)
 
     # load MLP model
     else:

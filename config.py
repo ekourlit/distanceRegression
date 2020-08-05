@@ -27,7 +27,7 @@ settings = {
     'LearningRate'      :    1e-5,
     'b1'                :    0.9,
     'b2'                :    0.999,
-    'Amsgrad'           :    'false',
+    'Amsgrad'           :    'False',
     'Batch'             :    3000,
     'Epochs'            :    200
 }
