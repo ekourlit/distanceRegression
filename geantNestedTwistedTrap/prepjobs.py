@@ -1,4 +1,4 @@
-import subprocess, time, sys, math, os, stat
+import subprocess, time, sys, math, os, stat, argparse
 
 def runGeantinoMap(macFName, nNest, outFName):
     start_time = time.time()
@@ -14,7 +14,7 @@ def writeMacro(macFName, nEvents):
 
 def writeDataGenSubmit(basedir, submitFName, part, jobName, nNodes, account, expTime, nCores, macFName, nNest, image="/home/whopkins/fullsim-sources-geant4-v10.6.2.img"):
     srunStr = ""
-    srunStr += f"\tsrun -N1 -c $ncores -n1 singularity exec {image} {basedir}/wrapper.sh $startSeed $endSeed {macFName} {nNest} {jobName}>& logs/log_nNest{nNest}_startseed_${{startSeed}}.txt &\n"
+    srunStr += f"\tsrun -N1 -c $ncores -n1 --exclusive singularity exec {image} {basedir}/wrapper.sh $startSeed $endSeed {macFName} {nNest} {jobName}>& logs/log_nNest{nNest}_startseed_${{startSeed}}.txt &\n"
     submitStr = f"""#!/bin/bash
 #SBATCH -p {part}
 #SBATCH --job-name={jobName}
@@ -42,7 +42,7 @@ wait
     os.chmod(submitFName, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 def writeTrainSubmit(submitFName, part, jobName, nNodes, account, expTime, nCores, inputPath):
-    srunStr = f"srun -N1 -c $ncores -n1 conda run -n tf_mkl_intel python /home/whopkins/distanceRegression/distanceRegression.py --trainValData \\\"{inputPath}\\\" &\n"
+    srunStr = f"srun -N1 -c $ncores -n1 --exclusive conda run -n tf_mkl_intel bash -c 'python /home/whopkins/distanceRegression/distanceRegression.py --trainValData \\\"{inputPath}\\\" > /home/whopkins/distanceRegression/geantNestedTwistedTrap/build/logs/{jobName}.condaOut 2>&1' &\n"
     submitStr = f"""#!/bin/bash
 #SBATCH -p {part}
 #SBATCH --job-name={jobName}
@@ -61,21 +61,26 @@ wait
     f.close()
     os.chmod(submitFName, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
-part = 'hepd'
-account = 'condo'
-basedir = '/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/'
+parser = argparse.ArgumentParser(description='Produce data, train regression, evaluate inference time, all in one go.')
+parser.add_argument('-p', '--partition', default='hepd')
+parser.add_argument('-a', '--account', default='condo')
+parser.add_argument('-d', '--basedir', default='/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/', help='Directory that contains the executable.')
+parser.add_argument('-w', '--workdir', default='/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/', help='Working directory. This is where logs and outputs will be placed. Not yet implemented!')
+parser.add_argument('-n', '--nNesting', type=int, default=2, help='Degree of nesting of twisted trapezoids.')
+parser.add_argument('-c', '--cores', type=int, default=36)
+parser.add_argument('-e', '--events', type=int, default=1E7)
+parser.add_argument('-s', '--submit', action='store_true', help='Submit jobs.')
+parser.add_argument('-f', '--fudgeFactor', type=float, default=1.5, help='Fudge factor for the running time of the data generation.')
+
+args = parser.parse_args()
+
+#part = 'knlall'
+#account = 'ATLAS-HEP-group'
 macFName = 'run.mac'
-maxNesting = 2;
 nNodes = 1 #Number of nodes per data generation job. maxNesting
-nCores = 36
-desiredNEvts = 1E7
-minEventsPerJob = 2000
-# if nEventsPerJob < minEventsPerJob:
-#     print("You should probably have more than "+str(minEventsPerJob)+" in each file. Exiting")
-#     sys.exit()
+
 lines = 0
 totalTime = 0
-increaseFactor = 2
 # find the number of events needed 
 nEvents = 10000
 writeMacro(macFName, nEvents)
@@ -84,7 +89,7 @@ times = []
 outs = []
 errs = []
 outFName = 'test'
-for nNest in range(1,maxNesting+1):
+for nNest in range(1,args.nNesting+1):
     (out, err, totalTime) = runGeantinoMap(macFName, nNest, outFName)
     outs.append(out)
     errs.append(err)
@@ -92,37 +97,37 @@ for nNest in range(1,maxNesting+1):
 ntFName = f'{outFName}_nt_distance_1.csv'
 lines = len(open(ntFName).readlines())
 efficiency = 1.*lines/nEvents
-nEventsPerJob = int(math.ceil((desiredNEvts/(nNodes*nCores))/efficiency))
+nEventsPerJob = int(math.ceil((args.events/(nNodes*args.cores))/efficiency))
 
 expectedTimePerJob = int(math.ceil((nEventsPerJob/nEvents)*max(times)))
-print(lines, nEventsPerJob, expectedTimePerJob, max(times))
+print(lines, nEventsPerJob, expectedTimePerJob, round(max(times),2))
 
 writeMacro(macFName, nEventsPerJob)
-safetyFact = 1.5
+safetyFact = args.fudgeFactor
 expTime = time.strftime('%H:%M:%S', time.gmtime(expectedTimePerJob*safetyFact))
 outFNames = {}
 dataGenSubmitFNames = {}
-for nNest in range(1,maxNesting+1):
+for nNest in range(1,args.nNesting+1):
     jobName = f'g4NestedTwistedTrapDataGen_{nNest}'
     submitFName = f'nestedTrapDataGen_{nNest}.slurm'
     dataGenSubmitFNames[nNest] = submitFName
-    writeDataGenSubmit(basedir, submitFName, part, jobName, nNodes, account, expTime, nCores, macFName, nNest)
+    writeDataGenSubmit(args.basedir, submitFName, args.partition, jobName, nNodes, args.account, expTime, args.cores, macFName, nNest)
     outFNames[nNest] = jobName
 
 # Now produce the training batch jobs
 trainTime = '48:00:00'
 trainSubmitFNames = {}
-for nNest in range(1,maxNesting+1):
+for nNest in range(1,args.nNesting+1):
     jobName = f'g4NestedTwistedTrapTrain_{nNest}'
     submitFName = f'nestedTrapTrain_{nNest}.slurm'
     trainSubmitFNames[nNest] = submitFName
-    inputPath = f'{basedir}/{outFNames[nNest]}_nt_distance_*.csv'
+    inputPath = f'{args.basedir}/{outFNames[nNest]}_nt_distance_*.csv'
     
-    writeTrainSubmit(submitFName, part, jobName, nNodes, account, trainTime, nCores, inputPath)
+    writeTrainSubmit(submitFName, args.partition, jobName, nNodes, args.account, trainTime, args.cores, inputPath)
 
-submit = True
-if submit:
-    for nNest in range(1,maxNesting+1):
+if args.submit:
+    print('Submitting jobs...')
+    for nNest in range(1,args.nNesting+1):
         submitFName = dataGenSubmitFNames[nNest]
         process = subprocess.Popen(f'sbatch {submitFName}', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         out, err = process.communicate()
