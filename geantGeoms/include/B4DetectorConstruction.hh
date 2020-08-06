@@ -53,27 +53,10 @@ class G4GlobalMagFieldMessenger;
 class B4DetectorConstruction : public G4VUserDetectorConstruction
 {
   public:
-	B4DetectorConstruction(G4double reduction, G4int nNested);
+	B4DetectorConstruction();
     virtual ~B4DetectorConstruction();
-
-  public:
-    virtual G4VPhysicalVolume* Construct();
-    virtual void ConstructSDandField();
-
      
-  private:
-    // methods
-    //
-    void DefineMaterials();
-    G4VPhysicalVolume* DefineVolumes();
-  
-    // data members
-    //
-    static G4ThreadLocal G4GlobalMagFieldMessenger*  fMagFieldMessenger; 
-                                      // magnetic field messenger
-	G4double fReduction;
-	G4int fNNested;
-    
+private:
     G4bool  fCheckOverlaps; // option to activate checking of volumes overlaps
 };
 

@@ -27,6 +27,8 @@
 /// \file exampleB4a.cc
 /// \brief Main program of the B4a example
 
+#include "NestedTwistedTrapDetectorConstruction.hh"
+#include "SphereDetectorConstruction.hh"
 #include "B4DetectorConstruction.hh"
 #include "B4aActionInitialization.hh"
 
@@ -132,8 +134,8 @@ int main(int argc,char** argv)
 #endif
   // Set mandatory initialization classes
   //
-
-  auto detConstruction = new B4DetectorConstruction(reduction, nNested);
+  // Change this if you want a different geometry.
+  auto detConstruction = new NestedTwistedTrapDetectorConstruction(reduction, nNested);
   runManager->SetUserInitialization(detConstruction);
 
   auto physicsList = new FTFP_BERT;
