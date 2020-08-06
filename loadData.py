@@ -40,14 +40,14 @@ def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
     # create TextLineDatasets (lines) from the above list
     dataset = file_list.interleave(
         lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
-        # cycle_length=1) # the number of paths it concurrently process from file_list
         num_parallel_calls=tf.data.experimental.AUTOTUNE) 
     # parse & process csv line
     dataset = dataset.map(process_csv_line)
     # keep a hand in memory and shuffle
     dataset = dataset.shuffle(shuffle_buffer_size)
     # chop in batches and prepare in CPU 1 bach ahead before you feed into evaluation
-    dataset = dataset.batch(batch_size).prefetch(1)
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(1)
 
     return dataset
 
@@ -103,6 +103,8 @@ def getG4Arrays(G4FilePath, split_input=False):
             data_input = np.concatenate((positions, directions), axis=1)
         
         data_output = L
+
+        assert not (np.any(np.isnan(data_input)) and np.any(np.isnan(data_output)))
 
         return data_input, data_output
 
