@@ -1,10 +1,11 @@
 #!/usr/bin/bash
 source /opt/setup-fullsim-environment.sh
 source /opt/geant4/bin/geant4.sh
-baseRunDir=/home/whopkins/distanceRegression/geantTwistedTrap/build
-cd $baseRunDir
-for (( seed=$1; seed<$2; seed++ ))
+workDir=$1
+baseRunDir=$2
+cd $workDir
+for (( seed=$3; seed<$4; seed++ ))
 do
-	$baseRunDir/geantinoMap -m $baseRunDir/geantino.mac -s $seed -n $3 -u 3.2 -r 1.01 >& $baseRunDir/logs/log_${seed} &
+	$baseRunDir/geantinoMap -m $baseRunDir/$5 -s $seed --nNested $6 -o $7 >& $workDir/logs/log_${seed} &
 done
 wait

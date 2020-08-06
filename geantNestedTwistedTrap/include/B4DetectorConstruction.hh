@@ -53,17 +53,13 @@ class G4GlobalMagFieldMessenger;
 class B4DetectorConstruction : public G4VUserDetectorConstruction
 {
   public:
-    B4DetectorConstruction();
+	B4DetectorConstruction(G4double reduction, G4int nNested);
     virtual ~B4DetectorConstruction();
 
   public:
     virtual G4VPhysicalVolume* Construct();
     virtual void ConstructSDandField();
 
-    // get methods
-    //
-    const G4VPhysicalVolume* GetAbsorberPV() const;
-    const G4VPhysicalVolume* GetGapPV() const;
      
   private:
     // methods
@@ -75,23 +71,11 @@ class B4DetectorConstruction : public G4VUserDetectorConstruction
     //
     static G4ThreadLocal G4GlobalMagFieldMessenger*  fMagFieldMessenger; 
                                       // magnetic field messenger
-     
-    G4VPhysicalVolume*   fAbsorberPV; // the absorber physical volume
-    G4VPhysicalVolume*   fGapPV;      // the gap physical volume
+	G4double fReduction;
+	G4int fNNested;
     
     G4bool  fCheckOverlaps; // option to activate checking of volumes overlaps
 };
-
-// inline functions
-
-inline const G4VPhysicalVolume* B4DetectorConstruction::GetAbsorberPV() const { 
-  return fAbsorberPV; 
-}
-
-inline const G4VPhysicalVolume* B4DetectorConstruction::GetGapPV() const  { 
-  return fGapPV; 
-}
-     
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

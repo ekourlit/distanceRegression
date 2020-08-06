@@ -59,10 +59,10 @@ G4GlobalMagFieldMessenger* B4DetectorConstruction::fMagFieldMessenger = nullptr;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4DetectorConstruction::B4DetectorConstruction()
+B4DetectorConstruction::B4DetectorConstruction(G4double reduction, G4int nNested)
  : G4VUserDetectorConstruction(),
-   fAbsorberPV(nullptr),
-   fGapPV(nullptr),
+   fReduction(reduction),
+   fNNested(nNested),
    fCheckOverlaps(true)
 {
 }
@@ -150,19 +150,34 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
                  "World",          // its name
                  0,                // its mother  volume
                  false,            // no boolean operation
-                 0,                // copy number
-                 fCheckOverlaps);  // checking overlaps 
+                 0);                // copy number
+  if (fCheckOverlaps){
+		  G4bool overlap = worldPV->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " World volume properties are: "  << worldSizeXY/2 << " " << worldSizeZ/2 << G4endl;
+			  G4Exception("B4DetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
   
   //                               
   // Calorimeter
-  //  
+  //
+  
+  G4double pDx1 = (calorSizeXY*0.6)/2;
+  G4double pDx2 = (calorSizeXY*0.3)/4;
+  G4double pDy = calorSizeXY/4;
+  G4double pDz = calorSizeXY/2;
+  G4double twistAng = 60;
   auto calorimeterS
 	  = new G4TwistedTrap("CalorimeterTwistedTrap",
-                          60*deg,
-                          (calorSizeXY*0.6)/2,  // half x length at -pDz,-pDy
-                          (calorSizeXY*0.3)/4,  // half x length at -pDz,+pDy
-                          calorSizeXY/4,  // half y
-                          calorSizeXY/2); // half z
+                          twistAng*deg,
+                          pDx1,  // half x length at -pDz,-pDy
+                          pDx2,  // half x length at -pDz,+pDy
+                          pDy,  // half y
+                          pDz); // half z
 
   auto calorLV
     = new G4LogicalVolume(
@@ -170,41 +185,71 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
                  defaultMaterial,  // its material
                  "Calorimeter");   // its name
                                    
-  new G4PVPlacement(
+  auto placement = new G4PVPlacement(
                  0,                // no rotation
                  G4ThreeVector(),  // at (0,0,0)
                  calorLV,          // its logical volume                         
                  "Calorimeter",    // its name
                  worldLV,          // its mother  volume
                  false,            // no boolean operation
-                 0,                // copy number
-                 fCheckOverlaps);  // checking overlaps
+                 0);                // copy number
 
-  auto InnerCalorimeterS
-    = new G4TwistedTrap("InnerCalorimeterTwistedTrap",
-                          30*deg,
-                          (calorSizeXY*0.3)/2,  // half x length at -pDz,-pDy
-                          (calorSizeXY*0.15)/4, // half x length at -pDz,+pDy
-                          calorSizeXY/8,        // half y
-                          calorSizeXY/2);       // half z
+  if (fCheckOverlaps){
+		  G4bool overlap = placement->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " Calorimeter twisted trap volume properties are: " << twistAng << " " << pDx1 << " " << pDx2 << " " << pDy << " " << pDz << G4endl;
+			  G4Exception("B4DetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
 
-  auto InnerCalorLV
-    = new G4LogicalVolume(
-                 InnerCalorimeterS,     // its solid
-                 defaultMaterial,       // its material
-                 "InnerCalorimeter");   // its name
+  twistAng = 30;
+  auto motherVol = calorLV;
+  for (int nestI = 0; nestI < fNNested; nestI++ ){
+	  std::string trapName = "InnerCalorimeterTwistedTrap"+std::to_string(nestI);
+	  std::string logicalTrapName = "InnerCalorimeter"+std::to_string(nestI);
+
+	  pDx1 *= fReduction;
+	  pDx2 *= fReduction;
+	  pDy *= fReduction;
+	  pDz *= fReduction;
+
+	  auto InnerCalorimeterS
+		  = new G4TwistedTrap(trapName,
+		                      twistAng*deg,
+		                      pDx1,  // half x length at -pDz,-pDy
+		                      pDx2,  // half x length at -pDz,+pDy
+		                      pDy,  // half y
+		                      pDz); // half z
+
+	  auto InnerCalorLV
+		  = new G4LogicalVolume(
+		                        InnerCalorimeterS,     // its solid
+		                        defaultMaterial,       // its material
+		                        logicalTrapName);   // its name
                                    
-  new G4PVPlacement(
-                 0,                   // no rotation
-                 G4ThreeVector(),     // at (0,0,0)
-                 InnerCalorLV,        // its logical volume                         
-                 "InnerCalorimeter",  // its name
-                 calorLV,             // its mother  volume
-                 false,               // no boolean operation
-                 0,                   // copy number
-                 fCheckOverlaps);     // checking overlaps
-  
-  
+	  placement = new G4PVPlacement(
+	                    0,                   // no rotation
+	                    G4ThreeVector(),     // at (0,0,0)
+	                    InnerCalorLV,        // its logical volume                         
+	                    logicalTrapName,  // its name
+	                    motherVol,             // its mother  volume
+	                    false,               // no boolean operation
+	                    0); // copy number
+	  if (fCheckOverlaps){
+		  G4bool overlap = placement->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " Volume properties are: " << trapName << " " << twistAng << " " << pDx1 << " " << pDx2 << " " << pDy << " " << pDz << G4endl;
+			  G4Exception("B4DetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
+	  motherVol = InnerCalorLV;
+  }
   //                                        
   // Visualization attributes
   //

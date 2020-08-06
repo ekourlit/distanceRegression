@@ -1,6 +1,7 @@
 import os,pdb,argparse,sys
 import tensorflow as tf
 tf.random.set_seed(123)
+#tf.config.threading.set_inter_op_parallelism_threads(36)
 from models import *
 from loadData import *
 from plotUtils import Plot,plotTrainingMetrics
@@ -14,6 +15,8 @@ from datetime import date,datetime
 from tensorflow.keras.optimizers import *
 from tensorflow.keras.callbacks import EarlyStopping,LearningRateScheduler
 import config
+
+from sklearn.model_selection import train_test_split
 
 timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
 today = str(date.today())
@@ -58,8 +61,10 @@ def congigureAndGetModel(**config):
 
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
+parser.add_argument('--trainValData', help='Train dataset.', required=False, default=None)
+parser.add_argument('--valFrac', help='Fraction of data to be used for validation', type=float, required=False, default=0.2)
 parser.add_argument('--trainData', help='Train dataset.', required=False, default=None)
-parser.add_argument('--validationData', help='Train dataset.', required=True)
+parser.add_argument('--validationData', help='Train dataset.', required=False)
 parser.add_argument('--testData', help='Test dataset.', required=False)
 parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
 parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None, required=False)
@@ -72,11 +77,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
 
-    # load the validation data, which are needed either you train or not
-    valX, valY  = getG4Arrays(args.validationData)
+    if args.trainValData:
+      trainValData = args.trainValData.replace("\"", "")
+      print(trainValData)
+      dataX, dataY = getG4Arrays(trainValData)
+      trainX, valX, trainY, valY = train_test_split(dataX, dataY, test_size=args.valFrac, random_state=42)
+    else:
+      # load the validation data, which are needed either you train or not
+      valX, valY  = getG4Arrays(args.validationData)
+      
     valDataset = getDatasets(valX, valY)
 
-    # create MLP model
+    # create model & train it
     if args.model is None:
 
         # create distributed strategy
@@ -93,6 +105,7 @@ if __name__ == '__main__':
         # or load as you train
         trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
 
+        # get the optimizer
         myOptimizer = eval(config.settings['Optimizer']+'('+
             'learning_rate='+str(config.settings['LearningRate']*availableGPUs)+','+
             'beta_1='+str(config.settings['b1'])+','+

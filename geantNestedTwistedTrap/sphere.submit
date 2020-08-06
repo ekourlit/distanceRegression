@@ -16,7 +16,7 @@ do
 	startSeed=$(( $nodeI * $ncores ))
 	endSeed=$(( $startSeed + $ncores ))
 	echo $startSeed $endSeed
-    srun -N1 -c $ncores -n1 singularity exec /home/whopkins/fullsim-sources-geant4-v10.6.2.img /home/whopkins/distanceRegression/geantTwistedTrap/build/wrapper.sh $startSeed $endSeed 320 >& logs/log_startseed_${startSeed}.txt &
+    srun -N1 -c $ncores -n1 singularity exec /home/whopkins/fullsim-sources-geant4-v10.6.2.img /home/whopkins/distanceRegression/geantNestedTwistedTrap/build/wrapper.sh $startSeed $endSeed 370 >& logs/log_startseed_${startSeed}.txt &
 	
 done;
 

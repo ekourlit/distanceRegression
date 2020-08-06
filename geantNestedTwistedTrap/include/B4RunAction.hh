@@ -42,16 +42,18 @@ class G4Run;
 class B4RunAction : public G4UserRunAction
 {
   public:
-	B4RunAction(int, float, float, float, long);
+	B4RunAction(bool, int, float, float, float, long, G4String);
     virtual ~B4RunAction();
 
     virtual void BeginOfRunAction(const G4Run*);
     virtual void   EndOfRunAction(const G4Run*);
+	bool fFlatL;
 	int fNBins;
 	float fMinValHist;
 	float fMaxValHist;
 	float fAllowedDiff;
 	long fSeed;
+	G4String fFileName;
 	
 };
 

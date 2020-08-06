@@ -67,16 +67,23 @@ int main(int argc,char** argv)
     return 1;
   }
   int nBins = 20;
-  float minVal = 0;
-  float maxVal = 2;
-  float allowedDiff = 1.05;
+  double minVal = 0;
+  double maxVal = 2;
+  double allowedDiff = 1.05;
   long seed = 1;
-  
+  double reduction = 0.5;
+  int nNested = 1;
+  bool flatL = false;
+  G4String outFName = "default"; 
+
   G4String nBinsS;
   G4String minValS;
   G4String maxValS;
   G4String allowedDiffS;
   G4String seedS;
+  G4String reductionS;
+  G4String nNestedS;
+  G4String flatLS;
   G4String macro;
   G4String session;
 #ifdef G4MULTITHREADED
@@ -90,6 +97,11 @@ int main(int argc,char** argv)
     else if ( G4String(argv[i]) == "-u" ) {maxValS = argv[i+1]; maxVal = G4UIcommand::ConvertToDouble(maxValS);}
     else if ( G4String(argv[i]) == "-r" ) {allowedDiffS = argv[i+1]; allowedDiff = G4UIcommand::ConvertToDouble(allowedDiffS);}
     else if ( G4String(argv[i]) == "-s" ) {seedS = argv[i+1]; seed = G4UIcommand::ConvertToInt(seedS);}
+    else if ( G4String(argv[i]) == "--reduction" ) {reductionS = argv[i+1]; reduction = G4UIcommand::ConvertToDouble(reductionS);}
+    else if ( G4String(argv[i]) == "--nNested" ) {nNestedS = argv[i+1]; nNested = G4UIcommand::ConvertToInt(nNestedS);}
+    else if ( G4String(argv[i]) == "-f" ) {flatLS = argv[i+1]; flatL = G4UIcommand::ConvertToBool(flatLS);}
+    else if ( G4String(argv[i]) == "-o" ) outFName = argv[i+1]; 
+
 #ifdef G4MULTITHREADED
     else if ( G4String(argv[i]) == "-t" ) {
       nThreads = G4UIcommand::ConvertToInt(argv[i+1]);
@@ -120,13 +132,14 @@ int main(int argc,char** argv)
 #endif
   // Set mandatory initialization classes
   //
-  auto detConstruction = new B4DetectorConstruction();
+
+  auto detConstruction = new B4DetectorConstruction(reduction, nNested);
   runManager->SetUserInitialization(detConstruction);
 
   auto physicsList = new FTFP_BERT;
   runManager->SetUserInitialization(physicsList);
     
-  auto actionInitialization = new B4aActionInitialization(detConstruction, nBins, minVal, maxVal, allowedDiff, seed);
+  auto actionInitialization = new B4aActionInitialization(detConstruction, flatL, nBins, minVal, maxVal, allowedDiff, seed, outFName);
   runManager->SetUserInitialization(actionInitialization);
   
   // Get the pointer to the User Interface manager

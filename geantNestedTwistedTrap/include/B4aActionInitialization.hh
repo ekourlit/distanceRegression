@@ -31,6 +31,7 @@
 #define B4aActionInitialization_h 1
 
 #include "G4VUserActionInitialization.hh"
+#include "globals.hh"
 
 class B4DetectorConstruction;
 
@@ -40,7 +41,7 @@ class B4DetectorConstruction;
 class B4aActionInitialization : public G4VUserActionInitialization
 {
   public:
-	B4aActionInitialization(B4DetectorConstruction*, int, float, float, float, long);
+	B4aActionInitialization(B4DetectorConstruction*, bool, int, float, float, float, long, G4String);
     virtual ~B4aActionInitialization();
 
     virtual void BuildForMaster() const;
@@ -48,11 +49,13 @@ class B4aActionInitialization : public G4VUserActionInitialization
 
   private:
     B4DetectorConstruction* fDetConstruction;
+	bool fFlatL;
 	int fNBins;
 	float fMinValHist;
 	float fMaxValHist;
 	float fAllowedDiff;
 	long fSeed;
+	G4String fFileName;
 };
 
 #endif

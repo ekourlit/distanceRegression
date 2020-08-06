@@ -1,20 +1,21 @@
 #!/bin/bash
-#SBATCH -p knlall
+##SBATCH -p knlall
+#SBATCH -p hepd
 ##SBATCH -p bdwall
 #SBATCH --job-name=g4Sphere
-#SBATCH -N 1
-#SBATCH -A ATLAS-HEP-group
-##SBATCH -A condo
+#SBATCH -N 2
+##SBATCH -A ATLAS-HEP-group
+#SBATCH -A condo
 #SBATCH -o logs/sphere.%j.%N.out
 #SBATCH -e logs/sphere.%j.%N.error
-#SBATCH --time=2:00:00
-#SBATCH --ntasks-per-node=2
-ncores=2
+#SBATCH --time=24:00:00
+#SBATCH --ntasks-per-node=36
+ncores=36
 for (( nodeI=0; nodeI<$SLURM_JOB_NUM_NODES; nodeI++ ))
 do
 	startSeed=$(( $nodeI * $ncores ))
 	endSeed=$(( $startSeed + $ncores ))
-    srun -N1 -c $ncores -n1 singularity exec /home/whopkins/fullsim-sources-geant4-v10.6.2.img /home/whopkins/geant4/examples/basic/B4/build/wrapper.sh $startSeed $endSeed 200 >& logs/log_startseed_${startSeed}.txt &
+    srun -N1 -c $ncores -n1 singularity exec /home/whopkins/fullsim-sources-geant4-v10.6.2.img /home/whopkins/distanceRegression/geantSphere/build/wrapper.sh $startSeed $endSeed 200 >& logs/log_startseed_${startSeed}.txt &
 done;
 
 wait

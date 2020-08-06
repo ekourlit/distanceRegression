@@ -39,13 +39,15 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4RunAction::B4RunAction(int nBins, float minValHist, float maxValHist, float allowedDiff, long seed)
+B4RunAction::B4RunAction(bool flatL, int nBins, float minValHist, float maxValHist, float allowedDiff, long seed, G4String fileName)
 	: G4UserRunAction(),
+	  fFlatL(flatL),
 	  fNBins(nBins),
 	  fMinValHist(minValHist),
 	  fMaxValHist(maxValHist),
 	  fAllowedDiff(allowedDiff),
-	  fSeed(seed)
+	  fSeed(seed),
+	  fFileName(fileName)
 { 
   // set printing event number per each event
   //G4RunManager::GetRunManager()->SetPrintProgress(1);     
@@ -102,8 +104,7 @@ void B4RunAction::BeginOfRunAction(const G4Run* /*run*/)
 
   // Open an output file
   //
-  G4String fileName = "B4";
-  analysisManager->OpenFile(fileName);
+  analysisManager->OpenFile(fFileName);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
