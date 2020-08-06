@@ -10,7 +10,11 @@ def plotTrainingMetrics(history):
 
     loss = history['loss']
     val_loss = history['val_loss']
-    lr = history['lr']
+    lr = None
+    try:
+        lr = history['lr']
+    except KeyError:
+        pass
     mae = history['mae']
     val_mae = history['val_mae']
 
@@ -26,13 +30,14 @@ def plotTrainingMetrics(history):
     # ax1.tick_params(axis='y', labelcolor=color)
     plt.legend(['Train Loss', 'Validation Loss', 'MAE', 'Validation MAE'], loc='upper right')
 
-    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+    if lr is not None:
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
 
-    color = 'tab:cyan'
-    ax2.set_ylabel('Learning Rate', color=color)
-    ax2.plot(lr, color=color, alpha=0.6)
-    ax2.set_yscale('log')
-    ax2.tick_params(axis='y', labelcolor=color)
+        color = 'tab:cyan'
+        ax2.set_ylabel('Learning Rate', color=color)
+        ax2.plot(lr, color=color, alpha=0.6)
+        ax2.set_yscale('log')
+        ax2.tick_params(axis='y', labelcolor=color)
 
     fig.tight_layout()
 
@@ -146,6 +151,7 @@ class Plot:
         fig, axs = plt.subplots(1,3)
         fig.tight_layout(pad=1.3)
 
+
         # truth length
         truth_length = self.truth*self.dNorm
         axs[0].hist(truth_length, bins=100)
@@ -155,6 +161,7 @@ class Plot:
         pred_length = self.prediction*self.dNorm
         axs[1].hist(pred_length, bins=100)
         axs[1].set(xlabel='Predicted L')
+
 
         # error
         # error = np.divide(truth_length - pred_length, truth_length, out=np.zeros_like(truth_length - pred_length), where=truth_length!=0)
@@ -219,7 +226,7 @@ class Plot:
         # hist2d Truth vs Error
         # ###
         plt.clf()
-        h = plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(50,50),  norm=mpl.colors.LogNorm())
+        h = plt.hist2d(truth_length.reshape(len(truth_length),), error.reshape(len(error),), bins=(100,50), norm=mpl.colors.LogNorm())
         plt.colorbar(h[3])
         axis = plt.gca()
         plt.plot([axis.get_xlim()[0],axis.get_xlim()[1]], [0,0], c='r')
