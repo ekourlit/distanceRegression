@@ -1,5 +1,6 @@
 import os,pdb,argparse,sys
 import tensorflow as tf
+tf.random.set_seed(123)
 from models import *
 from loadData import *
 from plotUtils import Plot,plotTrainingMetrics
@@ -36,6 +37,25 @@ def logConfiguration(dictionary):
     f.write(log)
     f.close()
 
+def congigureAndGetModel(**config):
+    if args.distribute: 
+            with strategy.scope():
+                model = getSimpleMLP_DH(num_layers=config['layers'],
+                                        nodes=config['nodes'],
+                                        activation=config['activation'],
+                                        output_activation=config['output_activation'],
+                                        loss=config['loss'],
+                                        optimizer=config['optimizer'])
+    else:
+        model = getSimpleMLP_DH(num_layers=config['layers'],
+                                nodes=config['nodes'],
+                                activation=config['activation'],
+                                output_activation=config['output_activation'],
+                                loss=config['loss'],
+                                optimizer=config['optimizer'])
+
+    return model
+
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
 parser.add_argument('--trainData', help='Train dataset.', required=False, default=None)
@@ -44,6 +64,7 @@ parser.add_argument('--testData', help='Test dataset.', required=False)
 parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
 parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None, required=False)
 parser.add_argument('--test', help='Model testing environment. Do not save.', default=False, action='store_true')
+parser.add_argument('--distribute', help='Enable distributed training on available GPUs.', default=False, action='store_true')
 
 if __name__ == '__main__':
 
@@ -58,26 +79,33 @@ if __name__ == '__main__':
     # create MLP model
     if args.model is None:
 
-        # get some data to train & validate on
-        # load everything in memory
-        trainX, trainY  = getG4Arrays(args.trainData)
-        trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
+        # create distributed strategy
+        if args.distribute: 
+            strategy = tf.distribute.MirroredStrategy()
+            availableGPUs = int(len(gpus))
+        else:
+            availableGPUs = 1
 
-        # get the optimizer
+        # get some data to train & validate on
+        # load everything in memory in advance
+        # trainX, trainY  = getG4Arrays(args.trainData)
+        # trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch']*availableGPUs)
+        # or load as you train
+        trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
+
         myOptimizer = eval(config.settings['Optimizer']+'('+
-            'learning_rate='+str(config.settings['LearningRate'])+','+
+            'learning_rate='+str(config.settings['LearningRate']*availableGPUs)+','+
             'beta_1='+str(config.settings['b1'])+','+
-            'beta_2='+str(config.settings['b2'])+','+
-            'amsgrad='+str(config.settings['Amsgrad'])+')'
+            'beta_2='+str(config.settings['b2'])+')'
             ,{'__builtins__':None}, config.dispatcher)
 
         # get the DNN model
-        mlp_model = getSimpleMLP_DH(num_layers=config.settings['Layers'],
-                                    nodes=config.settings['Nodes'],
-                                    activation=config.settings['Activation'],
-                                    output_activation=config.settings['OutputActivation'],
-                                    loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
-                                    optimizer=myOptimizer)
+        mlp_model = congigureAndGetModel(layers=config.settings['Layers'],
+                                         nodes=config.settings['Nodes'],
+                                         activation=config.settings['Activation'],
+                                         output_activation=config.settings['OutputActivation'],
+                                         loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
+                                         optimizer=myOptimizer)
 
         # get lr scheduler functions
         expIncreaseTestFunc = expIncreaseTest(config.settings['LearningRate'])
@@ -85,8 +113,8 @@ if __name__ == '__main__':
 
         # callbacks
         callbacks_list = [
-            # EarlyStopping(monitor='val_mae', min_delta=0.01, patience=5, restore_best_weights=True),
-            LearningRateScheduler(oneCycleFunc)
+            EarlyStopping(monitor='val_mae', min_delta=0.001, patience=5, restore_best_weights=True)
+            # LearningRateScheduler(oneCycleFunc)
             ]
 
         # fit model
@@ -135,6 +163,7 @@ if __name__ == '__main__':
     if args.plots: 
         validationPlots = Plot('validation', timestamp, truth=valY, prediction=pred_valY)
         validationPlots.plotPerformance()
+        # validationPlots.plotInputs()
         # trainPlots = Plot('training', timestamp, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
         # trainPlots.plotInputs()
         # trainPlots.plotPerformance()
