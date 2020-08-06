@@ -1,8 +1,7 @@
 import os,pdb,argparse,sys
 import tensorflow as tf
+tf.random.set_seed(123)
 #tf.config.threading.set_inter_op_parallelism_threads(36)
-import os
-
 from models import *
 from loadData import *
 from plotUtils import Plot,plotTrainingMetrics
@@ -41,6 +40,25 @@ def logConfiguration(dictionary):
     f.write(log)
     f.close()
 
+def congigureAndGetModel(**config):
+    if args.distribute: 
+            with strategy.scope():
+                model = getSimpleMLP_DH(num_layers=config['layers'],
+                                        nodes=config['nodes'],
+                                        activation=config['activation'],
+                                        output_activation=config['output_activation'],
+                                        loss=config['loss'],
+                                        optimizer=config['optimizer'])
+    else:
+        model = getSimpleMLP_DH(num_layers=config['layers'],
+                                nodes=config['nodes'],
+                                activation=config['activation'],
+                                output_activation=config['output_activation'],
+                                loss=config['loss'],
+                                optimizer=config['optimizer'])
+
+    return model
+
 # define the input arguments
 parser = argparse.ArgumentParser(description='Regress distance to the boundary of a unit cube from 3D points and directions.')
 parser.add_argument('--trainValData', help='Train dataset.', required=False, default=None)
@@ -51,6 +69,7 @@ parser.add_argument('--testData', help='Test dataset.', required=False)
 parser.add_argument('--plots', help='Produce sanity plots.', default=False, action='store_true')
 parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None, required=False)
 parser.add_argument('--test', help='Model testing environment. Do not save.', default=False, action='store_true')
+parser.add_argument('--distribute', help='Enable distributed training on available GPUs.', default=False, action='store_true')
 
 if __name__ == '__main__':
 
@@ -58,7 +77,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
 
-    
     if args.trainValData:
       trainValData = args.trainValData.replace("\"", "")
       print(trainValData)
@@ -70,56 +88,63 @@ if __name__ == '__main__':
       
     valDataset = getDatasets(valX, valY)
 
-    # create MLP model
+    # create model & train it
     if args.model is None:
+
+        # create distributed strategy
+        if args.distribute: 
+            strategy = tf.distribute.MirroredStrategy()
+            availableGPUs = int(len(gpus))
+        else:
+            availableGPUs = 1
+
         # get some data to train & validate on
-        # load everything in memory
-      if not args.trainValData:
-        trainX, trainY  = getG4Arrays(args.trainData)
-        
-      trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch'])
+        # load everything in memory in advance
+        # trainX, trainY  = getG4Arrays(args.trainData)
+        # trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch']*availableGPUs)
+        # or load as you train
+        trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
 
         # get the optimizer
-      myOptimizer = eval(config.settings['Optimizer']+'('+
-            'learning_rate='+str(config.settings['LearningRate'])+','+
+        myOptimizer = eval(config.settings['Optimizer']+'('+
+            'learning_rate='+str(config.settings['LearningRate']*availableGPUs)+','+
             'beta_1='+str(config.settings['b1'])+','+
-            'beta_2='+str(config.settings['b2'])+','+
-            'amsgrad='+str(config.settings['Amsgrad'])+')'
+            'beta_2='+str(config.settings['b2'])+')'
             ,{'__builtins__':None}, config.dispatcher)
-        
-      # get the DNN model
-      mlp_model = getSimpleMLP_DH(num_layers=config.settings['Layers'],
-                                  nodes=config.settings['Nodes'],
-                                  activation=config.settings['Activation'],
-                                  output_activation=config.settings['OutputActivation'],
-                                  loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
-                                  optimizer=myOptimizer)
 
-      # get lr scheduler functions
-      expIncreaseTestFunc = expIncreaseTest(config.settings['LearningRate'])
-      oneCycleFunc = oneCycle(config.settings['LearningRate'], 0.1, 10, 100)
+        # get the DNN model
+        mlp_model = congigureAndGetModel(layers=config.settings['Layers'],
+                                         nodes=config.settings['Nodes'],
+                                         activation=config.settings['Activation'],
+                                         output_activation=config.settings['OutputActivation'],
+                                         loss=eval(config.settings['Loss']+'('+str(config.settings['negPunish'])+')', {'__builtins__':None}, config.dispatcher) if 'getNoOverestimateLossFunction' in config.settings['Loss'] else config.settings['Loss'],
+                                         optimizer=myOptimizer)
 
-      # callbacks
-      callbacks_list = [
-          # EarlyStopping(monitor='val_mae', min_delta=0.01, patience=5, restore_best_weights=True),
-          LearningRateScheduler(oneCycleFunc)
-          ]
+        # get lr scheduler functions
+        expIncreaseTestFunc = expIncreaseTest(config.settings['LearningRate'])
+        oneCycleFunc = oneCycle(config.settings['LearningRate'], 0.1, 10, 100)
 
-      # fit model
-      history = mlp_model.fit(trainDataset,
-                              epochs=config.settings['Epochs'],
-                              validation_data=valDataset,
-                              callbacks=callbacks_list)
+        # callbacks
+        callbacks_list = [
+            EarlyStopping(monitor='val_mae', min_delta=0.001, patience=5, restore_best_weights=True)
+            # LearningRateScheduler(oneCycleFunc)
+            ]
 
-      # save model and print learning rate
-      if not args.test: 
-          mlp_model.save('data/mlp_model_'+timestamp+'.h5')
-          logConfiguration(config.settings)
-          # plot training
-          plotTrainingMetrics(history.history)            
-          system('mkdir -p plots/'+today+'/'+timestamp)
-          plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
-          print("Trained model saved! Timestamp:", timestamp)
+        # fit model
+        history = mlp_model.fit(trainDataset,
+                                epochs=config.settings['Epochs'],
+                                validation_data=valDataset,
+                                callbacks=callbacks_list)
+
+        # save model and print learning rate
+        if not args.test: 
+            mlp_model.save('data/mlp_model_'+timestamp+'.h5')
+            logConfiguration(config.settings)
+            # plot training
+            plotTrainingMetrics(history.history)            
+            system('mkdir -p plots/'+today+'/'+timestamp)
+            plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
+            print("Trained model saved! Timestamp:", timestamp)
 
     # load MLP model
     else:
@@ -151,6 +176,7 @@ if __name__ == '__main__':
     if args.plots: 
         validationPlots = Plot('validation', timestamp, truth=valY, prediction=pred_valY)
         validationPlots.plotPerformance()
+        # validationPlots.plotInputs()
         # trainPlots = Plot('training', timestamp, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
         # trainPlots.plotInputs()
         # trainPlots.plotPerformance()

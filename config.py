@@ -20,15 +20,15 @@ settings = {
     'Layers'            :    4,
     'Nodes'             :    400,
     'Activation'        :    'relu',
-    'OutputActivation'  :    'relu',
+    'OutputActivation'  :    None,
     'Loss'              :    'getNoOverestimateLossFunction', #getNoOverestimateLossFunction #mae #mse
-    'negPunish'         :    7.0, # only for noOverestimateLossFunction
+    'negPunish'         :    5.0, # only for noOverestimateLossFunction
     'Optimizer'         :    'Adam',
-    'LearningRate'      :    1e-5,
+    'LearningRate'      :    1e-4,
     'b1'                :    0.9,
     'b2'                :    0.999,
-    'Amsgrad'           :    'False',
-    'Batch'             :    3000,
+    # 'Amsgrad'           :    false,
+    'Batch'             :    4096,
     'Epochs'            :    200
 }
 # convert the str to function call
