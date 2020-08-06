@@ -150,8 +150,17 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
                  "World",          // its name
                  0,                // its mother  volume
                  false,            // no boolean operation
-                 0,                // copy number
-                 fCheckOverlaps);  // checking overlaps 
+                 0);                // copy number
+  if (fCheckOverlaps){
+		  G4bool overlap = worldPV->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " World volume properties are: "  << worldSizeXY/2 << " " << worldSizeZ/2 << G4endl;
+			  G4Exception("B4DetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
   
   //                               
   // Calorimeter
@@ -161,9 +170,10 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
   G4double pDx2 = (calorSizeXY*0.3)/4;
   G4double pDy = calorSizeXY/4;
   G4double pDz = calorSizeXY/2;
+  G4double twistAng = 60;
   auto calorimeterS
 	  = new G4TwistedTrap("CalorimeterTwistedTrap",
-                          60*deg,
+                          twistAng*deg,
                           pDx1,  // half x length at -pDz,-pDy
                           pDx2,  // half x length at -pDz,+pDy
                           pDy,  // half y
@@ -175,17 +185,27 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
                  defaultMaterial,  // its material
                  "Calorimeter");   // its name
                                    
-  new G4PVPlacement(
+  auto placement = new G4PVPlacement(
                  0,                // no rotation
                  G4ThreeVector(),  // at (0,0,0)
                  calorLV,          // its logical volume                         
                  "Calorimeter",    // its name
                  worldLV,          // its mother  volume
                  false,            // no boolean operation
-                 0,                // copy number
-                 fCheckOverlaps);  // checking overlaps
+                 0);                // copy number
 
-  G4double twistAng = 30;
+  if (fCheckOverlaps){
+		  G4bool overlap = placement->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " Calorimeter twisted trap volume properties are: " << twistAng << " " << pDx1 << " " << pDx2 << " " << pDy << " " << pDz << G4endl;
+			  G4Exception("B4DetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
+
+  twistAng = 30;
   auto motherVol = calorLV;
   for (int nestI = 0; nestI < fNNested; nestI++ ){
 	  std::string trapName = "InnerCalorimeterTwistedTrap"+std::to_string(nestI);
@@ -210,15 +230,24 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
 		                        defaultMaterial,       // its material
 		                        logicalTrapName);   // its name
                                    
-	  new G4PVPlacement(
+	  placement = new G4PVPlacement(
 	                    0,                   // no rotation
 	                    G4ThreeVector(),     // at (0,0,0)
 	                    InnerCalorLV,        // its logical volume                         
 	                    logicalTrapName,  // its name
 	                    motherVol,             // its mother  volume
 	                    false,               // no boolean operation
-	                    0,                   // copy number
-	                    fCheckOverlaps);     // checking overlaps
+	                    0); // copy number
+	  if (fCheckOverlaps){
+		  G4bool overlap = placement->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " Volume properties are: " << trapName << " " << twistAng << " " << pDx1 << " " << pDx2 << " " << pDy << " " << pDz << G4endl;
+			  G4Exception("B4DetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
 	  motherVol = InnerCalorLV;
   }
   //                                        

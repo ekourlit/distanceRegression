@@ -78,40 +78,49 @@ args = parser.parse_args()
 macFName = 'run.mac'
 nNodes = 1 #Number of nodes per data generation job. 
 
-# find the number of events needed 
-lines = 0
-totalTime = 0
-nEvents = 10000
-writeMacro(macFName, nEvents)
+# Check if the required directories exist.
+dirs = ['logs','data', 'plots']
+for directory in dirs:
+    if not os.path.exists(directory):
+        os.mkdir(directory)
 
-times = []
-outs = []
-errs = []
-outFName = 'test'
-for nNest in range(1,args.nNesting+1):
-    (out, err, totalTime) = runGeantinoMap(macFName, nNest, outFName, args.workdir, args.basedir)
-    outs.append(out)
-    errs.append(err)
-    print(out)
-    print(err)
-    times.append(totalTime)
-ntFName = f'{outFName}_nt_distance_1.csv'
-lines = len(open(ntFName).readlines())
-efficiency = 1.*lines/nEvents
-nEventsPerJob = int(math.ceil((args.events/(nNodes*args.cores))/efficiency))
-expectedTimePerJob = int(math.ceil((nEventsPerJob/nEvents)*max(times)))
+# find the number of events needed.
+if not args.trainOnly:
+    lines = 0
+    totalTime = 0
+    nEvents = 10000
+    writeMacro(macFName, nEvents)
 
-# Write the data production submission file. 
-writeMacro(macFName, nEventsPerJob)
-expTime = time.strftime('%H:%M:%S', time.gmtime(expectedTimePerJob*args.fudgeFactor))
-outFNames = {}
-dataGenSubmitFNames = {}
-for nNest in range(1,args.nNesting+1):
-    jobName = f'g4NestedTwistedTrapDataGen_{nNest}'
-    submitFName = f'nestedTrapDataGen_{nNest}.slurm'
-    dataGenSubmitFNames[nNest] = submitFName
-    writeDataGenSubmit(submitFName, args.partition, jobName, nNodes, args.account, expTime, args.cores, macFName, nNest, args.basedir, args.workdir)
-    outFNames[nNest] = jobName
+    times = []
+    outs = []
+    errs = []
+    outFName = 'test'
+    for nNest in range(1,args.nNesting+1):
+        (out, err, totalTime) = runGeantinoMap(macFName, nNest, outFName, args.workdir, args.basedir)
+        outs.append(out)
+        errs.append(err)
+        times.append(totalTime)
+    ntFName = f'{outFName}_nt_distance_1.csv'
+    lines = len(open(ntFName).readlines())
+    efficiency = 1.*lines/nEvents
+    nEventsPerJob = int(math.ceil((args.events/(nNodes*args.cores))/efficiency))
+    expectedTimePerJob = int(math.ceil((nEventsPerJob/nEvents)*max(times)))
+
+    # Write the data production submission file. 
+    writeMacro(macFName, nEventsPerJob)
+    expTime = time.strftime('%H:%M:%S', time.gmtime(expectedTimePerJob*args.fudgeFactor))
+    outFNames = {}
+    dataGenSubmitFNames = {}
+    for nNest in range(1,args.nNesting+1):
+        jobName = f'g4NestedTwistedTrapDataGen_{nNest}'
+        submitFName = f'nestedTrapDataGen_{nNest}.slurm'
+        dataGenSubmitFNames[nNest] = submitFName
+        writeDataGenSubmit(submitFName, args.partition, jobName, nNodes, args.account, expTime, args.cores, macFName, nNest, args.basedir, args.workdir)
+        outFNames[nNest] = jobName
+else:
+    outFNames = {}
+    for nNest in range(1,args.nNesting+1):
+        outFNames[nNest] = f'g4NestedTwistedTrapDataGen_{nNest}'
 
 # Now produce the training batch jobs
 trainTime = '48:00:00'
@@ -127,9 +136,9 @@ for nNest in range(1,args.nNesting+1):
 if args.submit:
     print('Submitting jobs...')
     for nNest in range(1,args.nNesting+1):
-        submitFName = dataGenSubmitFNames[nNest]            
         trainSubmitFName = trainSubmitFNames[nNest]
         if not args.trainOnly:
+            submitFName = dataGenSubmitFNames[nNest]            
             process = subprocess.Popen(f'sbatch {submitFName}', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             out, err = process.communicate()
             try:
