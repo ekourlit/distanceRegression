@@ -23,7 +23,7 @@ def getNoOverestimateLossFunction(negPunish=1.0):
         negLoss = tf.reduce_mean(tf.square(y_true[negIndex]-y_pred[negIndex]))
         # negLoss = tf.reduce_mean(tf.abs(y_true[negIndex]-y_pred[negIndex])) # this is interesting, it almost disappears the overestimation but increase the overall MAE. maybe with some optimization I can make it work.
         posLoss = tf.reduce_mean(tf.square(y_true[~negIndex]-y_pred[~negIndex]))
-        totalLoss = negPunish*negLoss+posLoss
+        totalLoss = (negPunish*negLoss+posLoss)/(negPunish+1.0)
 
         return totalLoss
 
@@ -65,6 +65,9 @@ def oneCycle(lr0, tailEpochPortion, maxFact, minFact):
     lrMax = maxFact*lr0
     # finally reduce it to
     lrMinOrd = lr0/minFact
+
+    # check if the setup is possible
+    assert totalEpochs-1-(totalEpochs-tailEpoch) != 0 and totalEpochs-tailEpoch-1-(halfEpoch+1) != 0, "Adjust the number of epoch to the oneCycle needs."
 
     # @tf.function
     def oneCycle_fn(epoch):
