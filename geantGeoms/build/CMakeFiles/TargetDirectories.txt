@@ -1,0 +1,7 @@
+/gpfs/fs1/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/CMakeFiles/install/strip.dir
+/gpfs/fs1/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/CMakeFiles/edit_cache.dir
+/gpfs/fs1/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/CMakeFiles/geantinoMap.dir
+/gpfs/fs1/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/CMakeFiles/list_install_components.dir
+/gpfs/fs1/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/CMakeFiles/install/local.dir
+/gpfs/fs1/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/CMakeFiles/rebuild_cache.dir
+/gpfs/fs1/home/whopkins/distanceRegression/geantNestedTwistedTrap/build/CMakeFiles/install.dir
