@@ -76,7 +76,10 @@ void B4aSteppingAction::UserSteppingAction(const G4Step* step)
 	G4double startX = prepoint->GetPosition().x();
 	G4double startY = prepoint->GetPosition().y();
 	G4double startZ = prepoint->GetPosition().z();
-  
+
+	//G4double safety = prepoint->GetSafety();
+	//std::cout << "Safety is " << safety << " step length " << stepLength << "\n";
+
 	G4double dirX = momentumDirection.x();
 	G4double dirY = momentumDirection.y();
 	G4double dirZ = momentumDirection.z();

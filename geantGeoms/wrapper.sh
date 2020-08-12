@@ -6,6 +6,11 @@ baseRunDir=$2
 cd $workDir
 for (( seed=$3; seed<$4; seed++ ))
 do
-	$baseRunDir/geantinoMap -m $baseRunDir/$5 -s $seed --nNested $6 -o $7 >& $workDir/logs/log_${seed} &
+	if [ -z "$8" ]
+	then
+		$baseRunDir/geantinoMap -m $baseRunDir/$5 -s $seed --nNested $6 -o $7 >& $workDir/logs/log_${seed} &
+	else
+		valgrind --tool=callgrind $baseRunDir/geantinoMap -m $baseRunDir/$5 -s $seed --nNested $6 -o $7 >& $workDir/logs/log_${seed} &
+	fi
 done
 wait
