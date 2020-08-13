@@ -1,13 +1,16 @@
 import subprocess, time, sys, math, os, stat, argparse
 
-def runGeantinoMap(macFName, nNest, outFName, workdir, basedir, valgrind=False, image="/home/whopkins/fullsimbuilder-sources-scratch-valgrid.img"):
+def runGeantinoMap(macFName, nNest, outFName, workdir, basedir, valgrind=False, image="/home/whopkins/fullsimbuilder-sources-scratch-valgrid.img", comm=True):
     start_time = time.time()
     valgrindStr = ''
     if valgrind:
         valgrindStr = 'valgrind'
     execStr = f'singularity exec {image} {basedir}/wrapper.sh {workdir} {basedir} 1 2 {macFName} {nNest} {outFName} {valgrindStr}'
     process = subprocess.Popen(execStr, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    out, err = process.communicate()
+    out = 'dummy'
+    err = 'dummy'
+    if comm:
+        out, err = process.communicate()
     totalTime = time.time() - start_time
     return (out, err, totalTime)
 
@@ -170,4 +173,6 @@ if args.valgrind:
     nEvents = 1000
     valgrindMacFName = 'valgrind.mac'
     writeMacro(valgrindMacFName, nEvents)
-    (out, err, totalTime) = runGeantinoMap(valgrindMacFName, nNest, outFName, args.workdir, args.basedir, valgrind=True)
+    for nNest in range(1,args.nNesting+1):
+        outFName = f'valgrind_{nNest}'
+        (out, err, totalTime) = runGeantinoMap(valgrindMacFName, nNest, outFName, args.workdir, args.basedir, valgrind=True, comm=False)

@@ -178,6 +178,8 @@ G4VPhysicalVolume* NestedTwistedTrapDetectorConstruction::DefineVolumes()
                           pDx2,  // half x length at -pDz,+pDy
                           pDy,  // half y
                           pDz); // half z
+  std::cout << "The largest scales are: " <<  pDx1 << ", " << pDx2 << ", " << pDy << ", " << pDz << std::endl;
+
 
   auto calorLV
     = new G4LogicalVolume(
@@ -250,6 +252,7 @@ G4VPhysicalVolume* NestedTwistedTrapDetectorConstruction::DefineVolumes()
 	  }
 	  motherVol = InnerCalorLV;
   }
+  std::cout << "The smallest scales are: " <<  pDx1 << ", " << pDx2 << ", " << pDy << ", " << pDz << std::endl;
   //                                        
   // Visualization attributes
   //
