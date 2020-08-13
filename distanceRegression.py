@@ -77,33 +77,38 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
 
+    # create distributed strategy
+    if args.distribute: 
+        strategy = tf.distribute.MirroredStrategy()
+        availableGPUs = int(len(gpus))
+    else:
+        availableGPUs = 1
+
     if args.trainValData:
-      trainValData = args.trainValData.replace("\"", "")
-      print(trainValData)
-      dataX, dataY = getG4Arrays(trainValData)
-      trainX, valX, trainY, valY = train_test_split(dataX, dataY, test_size=args.valFrac, random_state=42)
+      trainValDataFiles = glob.glob(args.trainValData.replace("\"", ""))
+      nValFiles = int(args.valFrac*len(trainValDataFiles))
+      print(f'Using the first {nValFiles} files for validation out of {len(trainValDataFiles)} total files.')
+      valFiles = trainValDataFiles[:nValFiles]
+      trainFiles = trainValDataFiles[nValFiles:]
+      trainDataset = getG4Datasets_dataAPI(trainFiles, batch_size=config.settings['Batch']*availableGPUs)
     else:
       # load the validation data, which are needed either you train or not
-      valX, valY  = getG4Arrays(args.validationData)
+      trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
+      valFiles = glob.glob(args.validationData)
       
+    valX, valY = getG4Arrays(valFiles)
     valDataset = getDatasets(valX, valY)
-
     # create model & train it
     if args.model is None:
-
-        # create distributed strategy
-        if args.distribute: 
-            strategy = tf.distribute.MirroredStrategy()
-            availableGPUs = int(len(gpus))
-        else:
-            availableGPUs = 1
-
         # get some data to train & validate on
         # load everything in memory in advance
         # trainX, trainY  = getG4Arrays(args.trainData)
         # trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch']*availableGPUs)
         # or load as you train
-        trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
+        # if args.trainValData:
+        #   trainDataset = getG4Datasets_dataAPI(args.trainValData, batch_size=config.settings['Batch']*availableGPUs)
+        # else:
+        #   trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
 
         # get the optimizer
         myOptimizer = eval(config.settings['Optimizer']+'('+

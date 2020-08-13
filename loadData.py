@@ -23,7 +23,7 @@ def process_csv_line(line):
     length = tf.stack(fields[-1:])/config.lengthNormalisation
     return features, length
 
-def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
+def getG4Datasets_dataAPI(fileList, batch_size=32, shuffle_buffer_size=1000):
     '''
     Load datasets generated from Geant4.
     arguments
@@ -36,7 +36,8 @@ def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
 
     # using tf.data API
     # create a file list dataset
-    file_list = tf.data.Dataset.list_files(G4FilePath)
+    #file_list = tf.data.Dataset.list_files(G4FilePath)
+    file_list = tf.data.Dataset.from_tensor_slices(fileList) 
     # create TextLineDatasets (lines) from the above list
     dataset = file_list.interleave(
         lambda path: tf.data.TextLineDataset(path).skip(15), #skip the first 15 lines as it's header
@@ -51,7 +52,7 @@ def getG4Datasets_dataAPI(G4FilePath, batch_size=32, shuffle_buffer_size=1000):
 
     return dataset
 
-def getG4Arrays(G4FilePath, split_input=False):
+def getG4Arrays(fileList, split_input=False):
     '''
     Construct the test datasets generated from Geant4.
     arguments
@@ -59,34 +60,36 @@ def getG4Arrays(G4FilePath, split_input=False):
     return
         data_input, data_output: 1 x tf.Tensor. Input shape (i,6), output shape (i,1).
     '''
-    if '.hdf5' in G4FilePath:
-        file = h5py.File(G4FilePath,'r')
+    # This is broken!
+    if '.hdf5' in fileList:
+        dummy =0
+        # file = h5py.File(G4FilePath,'r')
         
-        X = np.array(file['default_ntuples']['B4']['x']['pages'])/config.positionNormalisation
-        Y = np.array(file['default_ntuples']['B4']['y']['pages'])/config.positionNormalisation
-        Z = np.array(file['default_ntuples']['B4']['z']['pages'])/config.positionNormalisation
-        Xprime = np.array(file['default_ntuples']['B4']['dx']['pages'])
-        Yprime = np.array(file['default_ntuples']['B4']['dy']['pages'])
-        Zprime = np.array(file['default_ntuples']['B4']['dz']['pages'])
-        L = np.array(file['default_ntuples']['B4']['distance']['pages'])
-        assert (np.any(L>config.lengthNormalisation)==False), "There are too large lengths in your dataset!"
+        # X = np.array(file['default_ntuples']['B4']['x']['pages'])/config.positionNormalisation
+        # Y = np.array(file['default_ntuples']['B4']['y']['pages'])/config.positionNormalisation
+        # Z = np.arrtrainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)ay(file['default_ntuples']['B4']['z']['pages'])/config.positionNormalisation
+        # Xprime = np.array(file['default_ntuples']['B4']['dx']['pages'])
+        # Yprime = np.array(file['default_ntuples']['B4']['dy']['pages'])
+        # Zprime = np.array(file['default_ntuples']['B4']['dz']['pages'])
+        # L = np.array(file['default_ntuples']['B4']['distance']['pages'])
+        # assert (np.any(L>config.lengthNormalisation)==False), "There are too large lengths in your dataset!"
 
-        data_input = tf.convert_to_tensor(np.column_stack((X,Y,Z,Xprime,Yprime,Zprime)))
-        # a normalisation of the output is also happening
-        data_output = tf.convert_to_tensor(np.column_stack(L/config.lengthNormalisation).T)
+        # data_input = tf.convert_to_tensor(np.column_stack((X,Y,Z,Xprime,Yprime,Zprime)))
+        # # a normalisation of the output is also happening
+        # data_output = tf.convert_to_tensor(np.column_stack(L/config.lengthNormalisation).T)
 
-        return data_input, data_output
+        # return data_input, data_output
 
     # csv input
     else:
         # path or wildcarded files
-        if not os.path.isfile(G4FilePath):
-            arrays = [np.loadtxt(file, delimiter=',', skiprows=12) for file in glob.glob(G4FilePath)]
-            data = np.concatenate(arrays)
+        #if not os.path.isfile(G4FilePath):
+        arrays = [np.loadtxt(file, delimiter=',', skiprows=12) for file in fileList]
+        data = np.concatenate(arrays)
 
         # single file
-        else:
-            data = np.loadtxt(G4FilePath, delimiter=',', skiprows=12)
+        # else:
+        #     data = np.loadtxt(G4FilePath, delimiter=',', skiprows=12)
 
         L = (data[:,6]/config.lengthNormalisation).reshape(data[:,6].size, 1)
         if config.lengthNormalisation != 1: assert (np.any(L>1)==False), "There are too large lengths in your dataset!"
