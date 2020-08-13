@@ -1,11 +1,11 @@
 import subprocess, time, sys, math, os, stat, argparse
 
-def runGeantinoMap(macFName, nNest, outFName, workdir, basedir, valgrind=False):
+def runGeantinoMap(macFName, nNest, outFName, workdir, basedir, valgrind=False, image="/home/whopkins/fullsimbuilder-sources-scratch-valgrid.img"):
     start_time = time.time()
     valgrindStr = ''
     if valgrind:
         valgrindStr = 'valgrind'
-    execStr = f'singularity exec /home/whopkins/fullsim-sources-geant4-v10.6.2.img {basedir}/wrapper.sh {workdir} {basedir} 1 2 {macFName} {nNest} {outFName} {valgrindStr}'
+    execStr = f'singularity exec {image} {basedir}/wrapper.sh {workdir} {basedir} 1 2 {macFName} {nNest} {outFName} {valgrindStr}'
     process = subprocess.Popen(execStr, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     out, err = process.communicate()
     totalTime = time.time() - start_time
@@ -17,7 +17,7 @@ def writeMacro(macFName, nEvents):
     testMac.write(f'/run/initialize\n/run/beamOn {nEvents}\n')
     testMac.close();
 
-def writeDataGenSubmit(submitFName, part, jobName, nNodes, account, expTime, nCores, macFName, nNest, workdir, basedir, image="/home/whopkins/fullsim-sources-geant4-v10.6.2.img"):
+def writeDataGenSubmit(submitFName, part, jobName, nNodes, account, expTime, nCores, macFName, nNest, workdir, basedir, image="/home/whopkins/fullsimbuilder-sources-scratch-valgrid.img"):
     srunStr = ""
     srunStr += f"srun -N1 -c $ncores -n1 --exclusive singularity exec {image} {basedir}/wrapper.sh {workdir} {basedir} $startSeed $endSeed {macFName} {nNest} {jobName} >& {workdir}/logs/log_nNest{nNest}_startseed_${{startSeed}}.txt "
     submitStr = f"""#!/bin/bash
@@ -44,8 +44,10 @@ wait
     f.close()
     os.chmod(submitFName, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
-def writeTrainSubmit(submitFName, part, jobName, nNodes, account, expTime, nCores, inputPath, workdir, basedir):
-    srunStr = f"srun -N1 -c $ncores -n1 --exclusive conda run -n tf_mkl_intel bash -c 'python {basedir}/distanceRegression.py --trainValData \\\"{inputPath}\\\" > {workdir}/logs/{jobName}.condaOut 2>&1' &"
+def writeTrainSubmit(submitFName, part, jobName, nNodes, account, expTime, nCores, inputPath, workdir, basedir, iterations=100):
+    srunStr = f"srun -N1 -c $ncores -n1 --exclusive conda run -n tf_mkl_intel bash -c 'python {basedir}/distanceRegression.py --modelName {jobName} --trainValData \\\"{inputPath}\\\" --plots > {workdir}/logs/{jobName}.condaOut 2>&1' "
+    srunEvalStr = f"srun -N1 -c 1 -n1 conda run -n tf_mkl_intel bash -c 'python {basedir}/simple_timing.py {jobName} --iterations {iterations} > {workdir}/logs/{jobName}.timing 2>&1' "
+
     submitStr = f"""#!/bin/bash
 #SBATCH -p {part}
 #SBATCH --job-name={jobName}
@@ -57,6 +59,7 @@ def writeTrainSubmit(submitFName, part, jobName, nNodes, account, expTime, nCore
 #SBATCH --ntasks-per-node={nCores}
 ncores={nCores}
 {srunStr}
+{srunEvalStr}
 wait
 """
     f = open(submitFName, 'w')
@@ -87,10 +90,11 @@ macFName = 'run.mac'
 nNodes = 1 #Number of nodes per data generation job. 
 
 # Check if the required directories exist.
-dirs = ['logs','data', 'plots']
+dirs = ['logs','data', 'plots', 'tmp']
 for directory in dirs:
-    if not os.path.exists(directory):
-        os.mkdir(directory)
+    fullPath = args.workdir+'/'+directory
+    if not os.path.exists(fullPath):
+        os.mkdir(fullPath)
 
 # find the number of events needed.
 if not args.trainOnly:
@@ -164,8 +168,6 @@ if args.submit:
 
 if args.valgrind:
     nEvents = 1
-    writeMacro(macFName, nEvents)
-    (out, err, totalTime) = runGeantinoMap(macFName, nNest, outFName, args.workdir, args.basedir, valgrind=True)
-    print(out)
-    print(err)
-   
+    valgrindMacFName = 'valgrind.mac'
+    writeMacro(valgrindMacFName, nEvents)
+    (out, err, totalTime) = runGeantinoMap(valgrindMacFName, nNest, outFName, args.workdir, args.basedir, valgrind=True)

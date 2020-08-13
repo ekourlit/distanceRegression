@@ -4,6 +4,7 @@ tf.random.set_seed(123)
 #tf.config.threading.set_inter_op_parallelism_threads(36)
 from models import *
 from loadData import *
+from simple_timing import *
 from plotUtils import Plot,plotTrainingMetrics
 import pandas as pd
 import numpy as np
@@ -34,9 +35,9 @@ if gpus:
     # Memory growth must be set before GPUs have been initialized
     print(e)
 
-def logConfiguration(dictionary):
+def logConfiguration(dictionary, modelName=''):
     log = json.dumps(dictionary)
-    f = open('data/modelConfig_'+timestamp+'.json','w')
+    f = open('data/modelConfig_'+modelName+'.json','w')
     f.write(log)
     f.close()
 
@@ -70,6 +71,8 @@ parser.add_argument('--plots', help='Produce sanity plots.', default=False, acti
 parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None, required=False)
 parser.add_argument('--test', help='Model testing environment. Do not save.', default=False, action='store_true')
 parser.add_argument('--distribute', help='Enable distributed training on available GPUs.', default=False, action='store_true')
+parser.add_argument('--modelName', help='Name you want to use to identify a model.', required=False, default=None)
+parser.add_argument('--useTimestamp', help='Use timestamp to identify models.', default=False, action='store_true')
 
 if __name__ == '__main__':
 
@@ -98,6 +101,14 @@ if __name__ == '__main__':
       
     valX, valY = getG4Arrays(valFiles)
     valDataset = getDatasets(valX, valY)
+
+     # save model and print learning rate. Time stamp will be used regarless of useTimestamp option if no model name is given.
+    modelName = timestamp
+    if modelName:
+      modelName = args.modelName
+      if args.useTimestamp:
+        modelName = modelName+"_"+timestamp
+            
     # create model & train it
     if args.model is None:
         # get some data to train & validate on
@@ -140,22 +151,20 @@ if __name__ == '__main__':
                                 epochs=config.settings['Epochs'],
                                 validation_data=valDataset,
                                 callbacks=callbacks_list)
-
-        # save model and print learning rate
+            
         if not args.test: 
-            mlp_model.save('data/mlp_model_'+timestamp+'.h5')
-            logConfiguration(config.settings)
+            mlp_model.save('data/mlp_model_'+modelName+'.h5')
+            logConfiguration(config.settings, modelName)
             # plot training
             plotTrainingMetrics(history.history)            
-            system('mkdir -p plots/'+today+'/'+timestamp)
-            plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
-            print("Trained model saved! Timestamp:", timestamp)
+            system('mkdir -p plots/'+today+'/'+modelName)
+            plt.savefig('plots/'+today+'/'+modelName+'/learning_'+modelName+'.pdf')
+            print("Trained model saved! ModelName:", modelName)
 
     # load MLP model
     else:
-        timestamp = [item.split('_')[-1].split('.')[0] for item in args.model.split('/') if 'mlp' in item][0]
         # unfortunately the negPunish is not saved but I can retrieve it from the logs
-        logDic = json.load(open('data/modelConfig_'+timestamp+'.json'))
+        logDic = json.load(open('data/modelConfig_'+modelName+'.json'))
         retValNegPunish = logDic['negPunish'] if 'negPunish' in logDic.keys() else 1
 
         mlp_model = tf.keras.models.load_model(args.model, 
@@ -179,11 +188,11 @@ if __name__ == '__main__':
 
     # plot
     if args.plots: 
-        validationPlots = Plot('validation', timestamp, truth=valY, prediction=pred_valY)
+        validationPlots = Plot('validation', modelName, truth=valY, prediction=pred_valY)
         validationPlots.plotPerformance()
         # validationPlots.plotInputs()
         # trainPlots = Plot('training', timestamp, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
         # trainPlots.plotInputs()
         # trainPlots.plotPerformance()
-    
+
     print("Done!")
