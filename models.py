@@ -1,5 +1,4 @@
 import tensorflow as tf
-
 from tensorflow.keras import layers
 import math
 
@@ -23,6 +22,7 @@ def getNoOverestimateLossFunction(negPunish=1.0):
         # punish by weight
         negLoss = tf.reduce_mean(tf.square(y_true[negIndex]-y_pred[negIndex]))
         # negLoss = tf.reduce_mean(tf.abs(y_true[negIndex]-y_pred[negIndex])) # this is interesting, it almost disappears the overestimation but increase the overall MAE. maybe with some optimization I can make it work.
+        # vangelis: another idea is to add the extra punishment as an additional term. i.e. mse + tf.reduce_mean(tf.abs(y_true[negIndex]-y_pred[negIndex]))
         posLoss = tf.reduce_mean(tf.square(y_true[~negIndex]-y_pred[~negIndex]))
         totalLoss = (negPunish*negLoss+posLoss)/(negPunish+1.0)
 
@@ -76,20 +76,16 @@ def oneCycle(lr0, tailEpochPortion, maxFact, minFact):
         if epoch <= halfEpoch:
             r = (lrMax - lr0)/halfEpoch
             lr = r * epoch + lr0
-            # print("lr1",lr)
-            return lr
         # decrease linearly until totalEpochs-tailEpoch
         elif epoch > halfEpoch and epoch < (totalEpochs-tailEpoch):
             r = - (lr0 - lrMax)/(totalEpochs-tailEpoch-1-(halfEpoch+1))
             lr = - r * (epoch-(halfEpoch+1)) + lrMax
-            # print("lr2",lr)
-            return lr
         # decrease linearly until the end
         else:
             r = - (lrMinOrd - lr0)/(totalEpochs-1-(totalEpochs-tailEpoch))
             lr = - r * (epoch - (totalEpochs-tailEpoch)) + lr0
-            # print("lr3",lr)
-            return lr
+
+        return lr
     return oneCycle_fn
 
 # # # # # # # # # # # # 
@@ -145,10 +141,15 @@ def getSimpleMLP_DH(**config):
     
     # construct
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Dense(config['nodes'], input_shape=(6,), activation=config['activation'], kernel_initializer='he_uniform'))
-    for layer in range(1, config['num_layers']):
-        model.add(tf.keras.layers.Dense(config['nodes'], activation=config['activation'], kernel_initializer='he_uniform'))
-    model.add(tf.keras.layers.Dense(1, activation=config['output_activation'], kernel_initializer='he_uniform'))
+
+    model.add(tf.keras.layers.Flatten(name='input_layer', input_shape=(6,)))
+    
+    model.add(tf.keras.layers.BatchNormalization(name='bn_layer'))
+    
+    for layer in range(0, config['num_layers']):
+        model.add(tf.keras.layers.Dense(config['nodes'], name='layer_'+str(layer), activation=config['activation'], kernel_initializer='he_uniform'))
+    
+    model.add(tf.keras.layers.Dense(1, name='output_layer', activation=config['output_activation'], kernel_initializer='he_uniform'))
 
     # compile
     model.compile(
