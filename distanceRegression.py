@@ -1,26 +1,13 @@
 import os,pdb,argparse,sys
-import tensorflow as tf
-tf.random.set_seed(123)
-#tf.config.threading.set_inter_op_parallelism_threads(36)
-from models import *
-from loadData import *
-from plotUtils import Plot,plotTrainingMetrics
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from os import system
 import h5py,csv,pickle
 import json
-from datetime import date,datetime
-from tensorflow.keras.optimizers import *
-from tensorflow.keras.callbacks import EarlyStopping,LearningRateScheduler
-import config
 
-from sklearn.model_selection import train_test_split
-
-timestamp = str(datetime.now().year)+str("{:02d}".format(datetime.now().month))+str("{:02d}".format(datetime.now().day))+str("{:02d}".format(datetime.now().hour))+str("{:02d}".format(datetime.now().minute))
-today = str(date.today())
-
+import tensorflow as tf
+tf.random.set_seed(123)
 # limit full GPU memory allocation by gradually allocating memory as needed
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
@@ -33,22 +20,34 @@ if gpus:
   except RuntimeError as e:
     # Memory growth must be set before GPUs have been initialized
     print(e)
+#tf.config.threading.set_inter_op_parallelism_threads(36)
+from tensorflow.keras.optimizers import *
+from tensorflow.keras.callbacks import EarlyStopping,LearningRateScheduler,TensorBoard
+
+from sklearn.model_selection import train_test_split
+
+from models import *
+from loadData import *
+from plotUtils import Plot,plotTrainingMetrics
+
+import config
+
 
 def logConfiguration(dictionary):
     log = json.dumps(dictionary)
-    f = open('data/modelConfig_'+timestamp+'.json','w')
+    f = open('data/modelConfig_'+config.settings['Timestamp']+'.json','w')
     f.write(log)
     f.close()
 
 def congigureAndGetModel(**config):
     if args.distribute: 
-            with strategy.scope():
-                model = getSimpleMLP_DH(num_layers=config['layers'],
-                                        nodes=config['nodes'],
-                                        activation=config['activation'],
-                                        output_activation=config['output_activation'],
-                                        loss=config['loss'],
-                                        optimizer=config['optimizer'])
+        with strategy.scope():
+            model = getSimpleMLP_DH(num_layers=config['layers'],
+                                    nodes=config['nodes'],
+                                    activation=config['activation'],
+                                    output_activation=config['output_activation'],
+                                    loss=config['loss'],
+                                    optimizer=config['optimizer'])
     else:
         model = getSimpleMLP_DH(num_layers=config['layers'],
                                 nodes=config['nodes'],
@@ -109,8 +108,9 @@ if __name__ == '__main__':
         myOptimizer = eval(config.settings['Optimizer']+'('+
             'learning_rate='+str(config.settings['LearningRate']*availableGPUs)+','+
             'beta_1='+str(config.settings['b1'])+','+
-            'beta_2='+str(config.settings['b2'])+')'
-            ,{'__builtins__':None}, config.dispatcher)
+            'beta_2='+str(config.settings['b2'])+')',
+            {'__builtins__':None}, config.dispatcher
+        )
 
         # get the DNN model
         mlp_model = congigureAndGetModel(layers=config.settings['Layers'],
@@ -126,8 +126,9 @@ if __name__ == '__main__':
 
         # callbacks
         callbacks_list = [
-            EarlyStopping(monitor='val_mae', min_delta=0.001, patience=5, restore_best_weights=True)
-            # LearningRateScheduler(oneCycleFunc)
+            # EarlyStopping(monitor='val_mae', min_delta=0.001, patience=8, restore_best_weights=True)
+            LearningRateScheduler(oneCycleFunc),
+            TensorBoard(log_dir='data/logs/'+config.settings['Timestamp'], histogram_freq=1)
             ]
 
         # fit model
@@ -138,19 +139,16 @@ if __name__ == '__main__':
 
         # save model and print learning rate
         if not args.test: 
-            mlp_model.save('data/mlp_model_'+timestamp+'.h5')
+            mlp_model.save('data/mlp_model_'+config.settings['Timestamp']+'.h5')
+            print("Trained model saved! Timestamp:", config.settings['Timestamp'])
             logConfiguration(config.settings)
-            # plot training
-            plotTrainingMetrics(history.history)            
-            system('mkdir -p plots/'+today+'/'+timestamp)
-            plt.savefig('plots/'+today+'/'+timestamp+'/learning_'+timestamp+'.pdf')
-            print("Trained model saved! Timestamp:", timestamp)
+            print("Configuration logged!")
 
     # load MLP model
     else:
-        timestamp = [item.split('_')[-1].split('.')[0] for item in args.model.split('/') if 'mlp' in item][0]
+        retrivedTimestamp = [item.split('_')[-1].split('.')[0] for item in args.model.split('/') if 'mlp' in item][0]
         # unfortunately the negPunish is not saved but I can retrieve it from the logs
-        logDic = json.load(open('data/modelConfig_'+timestamp+'.json'))
+        logDic = json.load(open('data/modelConfig_'+retrivedTimestamp+'.json'))
         retValNegPunish = logDic['negPunish'] if 'negPunish' in logDic.keys() else 1
 
         mlp_model = tf.keras.models.load_model(args.model, 
@@ -174,10 +172,10 @@ if __name__ == '__main__':
 
     # plot
     if args.plots: 
-        validationPlots = Plot('validation', timestamp, truth=valY, prediction=pred_valY)
+        validationPlots = Plot('validation', config.settings['Timestamp'], truth=valY, prediction=pred_valY)
         validationPlots.plotPerformance()
         # validationPlots.plotInputs()
-        # trainPlots = Plot('training', timestamp, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
+        # trainPlots = Plot('training', config.settings['Timestamp'], inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
         # trainPlots.plotInputs()
         # trainPlots.plotPerformance()
     
