@@ -24,16 +24,17 @@
 // ********************************************************************
 //
 // 
-/// \file B4DetectorConstruction.cc
-/// \brief Implementation of the B4DetectorConstruction class
+/// \file NestedTwistedTrapDetectorConstruction.cc
+/// \brief Implementation of the NestedTwistedTrapDetectorConstruction class
 
-#include "B4DetectorConstruction.hh"
+#include "NestedTwistedTrapDetectorConstruction.hh"
 
 #include "G4Material.hh"
 #include "G4NistManager.hh"
 
 #include "G4Box.hh"
 #include "G4Sphere.hh"
+#include "G4TwistedTrap.hh"
 #include "G4LogicalVolume.hh"
 #include "G4PVPlacement.hh"
 #include "G4PVReplica.hh"
@@ -54,27 +55,27 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 G4ThreadLocal 
-G4GlobalMagFieldMessenger* B4DetectorConstruction::fMagFieldMessenger = nullptr; 
+G4GlobalMagFieldMessenger* NestedTwistedTrapDetectorConstruction::fMagFieldMessenger = nullptr; 
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4DetectorConstruction::B4DetectorConstruction()
- : G4VUserDetectorConstruction(),
-   fAbsorberPV(nullptr),
-   fGapPV(nullptr),
+NestedTwistedTrapDetectorConstruction::NestedTwistedTrapDetectorConstruction(G4double reduction, G4int nNested)
+ : B4DetectorConstruction(),
+   fReduction(reduction),
+   fNNested(nNested),
    fCheckOverlaps(true)
 {
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4DetectorConstruction::~B4DetectorConstruction()
+NestedTwistedTrapDetectorConstruction::~NestedTwistedTrapDetectorConstruction()
 { 
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-G4VPhysicalVolume* B4DetectorConstruction::Construct()
+G4VPhysicalVolume* NestedTwistedTrapDetectorConstruction::Construct()
 {
   // Define materials 
   DefineMaterials();
@@ -85,7 +86,7 @@ G4VPhysicalVolume* B4DetectorConstruction::Construct()
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void B4DetectorConstruction::DefineMaterials()
+void NestedTwistedTrapDetectorConstruction::DefineMaterials()
 { 
   // Lead material defined using NIST Manager
   auto nistManager = G4NistManager::Instance();
@@ -108,10 +109,10 @@ void B4DetectorConstruction::DefineMaterials()
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
+G4VPhysicalVolume* NestedTwistedTrapDetectorConstruction::DefineVolumes()
 {
   // Geometry parameters
-  G4double calorSizeXY  = 2*mm;
+  G4double calorSizeXY  = 4*mm;
 
   auto worldSizeXY = 1. * calorSizeXY;
   auto worldSizeZ  = 1. * calorSizeXY; 
@@ -124,7 +125,7 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
   if ( ! defaultMaterial || ! absorberMaterial || ! gapMaterial ) {
     G4ExceptionDescription msg;
     msg << "Cannot retrieve materials already defined."; 
-    G4Exception("B4DetectorConstruction::DefineVolumes()",
+    G4Exception("NestedTwistedTrapDetectorConstruction::DefineVolumes()",
       "MyCode0001", FatalException, msg);
   }  
    
@@ -149,119 +150,109 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
                  "World",          // its name
                  0,                // its mother  volume
                  false,            // no boolean operation
-                 0,                // copy number
-                 fCheckOverlaps);  // checking overlaps 
+                 0);                // copy number
+  if (fCheckOverlaps){
+		  G4bool overlap = worldPV->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " World volume properties are: "  << worldSizeXY/2 << " " << worldSizeZ/2 << G4endl;
+			  G4Exception("NestedTwistedTrapDetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
   
   //                               
   // Calorimeter
-  //  
+  //
+  
+  G4double pDx1 = (calorSizeXY*0.6)/2;
+  G4double pDx2 = (calorSizeXY*0.3)/4;
+  G4double pDy = calorSizeXY/4;
+  G4double pDz = calorSizeXY/2;
+  G4double twistAng = 60;
   auto calorimeterS
-    = new G4Sphere("Calorimeter",       // its name
-                   0.0*mm,              // inner radius (for hollow geometries)
-                   calorSizeXY/2,       // outer radius
-                   0.0*deg, 360.0*deg,  // phi
-                   0.0*deg, 180.0*deg); // theta
+	  = new G4TwistedTrap("CalorimeterTwistedTrap",
+                          twistAng*deg,
+                          pDx1,  // half x length at -pDz,-pDy
+                          pDx2,  // half x length at -pDz,+pDy
+                          pDy,  // half y
+                          pDz); // half z
+  std::cout << "The largest scales are: " <<  pDx1 << ", " << pDx2 << ", " << pDy << ", " << pDz << std::endl;
 
-    // = new G4Box("Calorimeter",     // its name
-    //              calorSizeXY/2, calorSizeXY/2, calorSizeXY/2); // its size
-                         
+
   auto calorLV
     = new G4LogicalVolume(
                  calorimeterS,     // its solid
                  defaultMaterial,  // its material
                  "Calorimeter");   // its name
                                    
-  new G4PVPlacement(
+  auto placement = new G4PVPlacement(
                  0,                // no rotation
                  G4ThreeVector(),  // at (0,0,0)
                  calorLV,          // its logical volume                         
                  "Calorimeter",    // its name
                  worldLV,          // its mother  volume
                  false,            // no boolean operation
-                 0,                // copy number
-                 fCheckOverlaps);  // checking overlaps 
-  
-  //                                 
-  // Layer
-  //
-  // auto layerS 
-  //   = new G4Box("Layer",           // its name
-  //                calorSizeXY/2, calorSizeXY/2, layerThickness/2); // its size
-                         
-  // auto layerLV
-  //   = new G4LogicalVolume(
-  //                layerS,           // its solid
-  //                defaultMaterial,  // its material
-  //                "Layer");         // its name
+                 0);                // copy number
 
-  // new G4PVReplica(
-  //                "Layer",          // its name
-  //                layerLV,          // its logical volume
-  //                calorLV,          // its mother
-  //                kZAxis,           // axis of replication
-  //                nofLayers,        // number of replica
-  //                layerThickness);  // witdth of replica
-  
-  // //                               
-  // // Absorber
-  // //
-  // auto absorberS 
-  //   = new G4Box("Abso",            // its name
-  //                calorSizeXY/2, calorSizeXY/2, absoThickness/2); // its size
-                         
-  // auto absorberLV
-  //   = new G4LogicalVolume(
-  //                absorberS,        // its solid
-  //                absorberMaterial, // its material
-  //                "Abso");          // its name
-                                   
-  // fAbsorberPV
-  //   = new G4PVPlacement(
-  //                0,                // no rotation
-  //                G4ThreeVector(0., 0., -gapThickness/2), // its position
-  //                absorberLV,       // its logical volume                         
-  //                "Abso",           // its name
-  //                layerLV,          // its mother  volume
-  //                false,            // no boolean operation
-  //                0,                // copy number
-  //                fCheckOverlaps);  // checking overlaps 
+  if (fCheckOverlaps){
+		  G4bool overlap = placement->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " Calorimeter twisted trap volume properties are: " << twistAng << " " << pDx1 << " " << pDx2 << " " << pDy << " " << pDz << G4endl;
+			  G4Exception("NestedTwistedTrapDetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
 
-  // //                               
-  // // Gap
-  // //
-  // auto gapS 
-  //   = new G4Box("Gap",             // its name
-  //                calorSizeXY/2, calorSizeXY/2, gapThickness/2); // its size
-                         
-  // auto gapLV
-  //   = new G4LogicalVolume(
-  //                gapS,             // its solid
-  //                gapMaterial,      // its material
-  //                "Gap");           // its name
+  twistAng = 30;
+  auto motherVol = calorLV;
+  for (int nestI = 0; nestI < fNNested; nestI++ ){
+	  std::string trapName = "InnerCalorimeterTwistedTrap"+std::to_string(nestI);
+	  std::string logicalTrapName = "InnerCalorimeter"+std::to_string(nestI);
+
+	  pDx1 *= fReduction;
+	  pDx2 *= fReduction;
+	  pDy *= fReduction;
+	  pDz *= fReduction;
+
+	  auto InnerCalorimeterS
+		  = new G4TwistedTrap(trapName,
+		                      twistAng*deg,
+		                      pDx1,  // half x length at -pDz,-pDy
+		                      pDx2,  // half x length at -pDz,+pDy
+		                      pDy,  // half y
+		                      pDz); // half z
+
+	  auto InnerCalorLV
+		  = new G4LogicalVolume(
+		                        InnerCalorimeterS,     // its solid
+		                        defaultMaterial,       // its material
+		                        logicalTrapName);   // its name
                                    
-  // fGapPV
-  //   = new G4PVPlacement(
-  //                0,                // no rotation
-  //                G4ThreeVector(0., 0., absoThickness/2), // its position
-  //                gapLV,            // its logical volume                         
-  //                "Gap",            // its name
-  //                layerLV,          // its mother  volume
-  //                false,            // no boolean operation
-  //                0,                // copy number
-  //                fCheckOverlaps);  // checking overlaps 
-  
-  // //
-  // // print parameters
-  // //
-  // G4cout
-  //   << G4endl 
-  //   << "------------------------------------------------------------" << G4endl
-  //   << "---> The calorimeter is " << nofLayers << " layers of: [ "
-  //   << absoThickness/mm << "mm of " << absorberMaterial->GetName() 
-  //   << " + "
-  //   << gapThickness/mm << "mm of " << gapMaterial->GetName() << " ] " << G4endl
-  //   << "------------------------------------------------------------" << G4endl;
-  
+	  placement = new G4PVPlacement(
+	                    0,                   // no rotation
+	                    G4ThreeVector(),     // at (0,0,0)
+	                    InnerCalorLV,        // its logical volume                         
+	                    logicalTrapName,  // its name
+	                    motherVol,             // its mother  volume
+	                    false,               // no boolean operation
+	                    0); // copy number
+	  if (fCheckOverlaps){
+		  G4bool overlap = placement->CheckOverlaps();
+		  if (overlap){
+			  G4ExceptionDescription msg;
+			  msg << "You have overlapping volumes!" << G4endl;
+			  msg << " Volume properties are: " << trapName << " " << twistAng << " " << pDx1 << " " << pDx2 << " " << pDy << " " << pDz << G4endl;
+			  G4Exception("NestedTwistedTrapDetectorConstruction::DefineVolumes()",
+			              "MyCode0002", FatalException, msg);
+		  }
+	  }
+	  motherVol = InnerCalorLV;
+  }
+  std::cout << "The smallest scales are: " <<  pDx1 << ", " << pDx2 << ", " << pDy << ", " << pDz << std::endl;
   //                                        
   // Visualization attributes
   //
@@ -279,7 +270,7 @@ G4VPhysicalVolume* B4DetectorConstruction::DefineVolumes()
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void B4DetectorConstruction::ConstructSDandField()
+void NestedTwistedTrapDetectorConstruction::ConstructSDandField()
 { 
   // Create global magnetic field messenger.
   // Uniform magnetic field is then created automatically if

@@ -24,35 +24,59 @@
 // ********************************************************************
 //
 // 
-/// \file B4RunAction.hh
-/// \brief Definition of the B4RunAction class
+/// \file NestedTwistedTrapDetectorConstruction.hh
+/// \brief Definition of the NestedTwistedTrapDetectorConstruction class
 
-#ifndef B4RunAction_h
-#define B4RunAction_h 1
+#ifndef NestedTwistedTrapDetectorConstruction_h
+#define NestedTwistedTrapDetectorConstruction_h 1
 
-#include "G4UserRunAction.hh"
+#include "G4VUserDetectorConstruction.hh"
+#include "B4DetectorConstruction.hh"
+
 #include "globals.hh"
 
-class G4Run;
+class G4VPhysicalVolume;
+class G4GlobalMagFieldMessenger;
 
-/// Run action class
+/// Detector construction class to define materials and geometry.
+/// The calorimeter is a box made of a given number of layers. A layer consists
+/// of an absorber plate and of a detection gap. The layer is replicated.
 ///
+/// Four parameters define the geometry of the calorimeter :
 ///
+/// - the thickness of an absorber plate,
+/// - the thickness of a gap,
+/// - the number of layers,
+/// - the transverse size of the calorimeter (the input face is a square).
+///
+/// In addition a transverse uniform magnetic field is defined 
+/// via G4GlobalMagFieldMessenger class.
 
-class B4RunAction : public G4UserRunAction
+class NestedTwistedTrapDetectorConstruction : public B4DetectorConstruction
 {
   public:
-	B4RunAction(int, float, float, float, long);
-    virtual ~B4RunAction();
+	NestedTwistedTrapDetectorConstruction(G4double reduction, G4int nNested);
+    virtual ~NestedTwistedTrapDetectorConstruction();
 
-    virtual void BeginOfRunAction(const G4Run*);
-    virtual void   EndOfRunAction(const G4Run*);
-	int fNBins;
-	float fMinValHist;
-	float fMaxValHist;
-	float fAllowedDiff;
-	long fSeed;
-	
+  public:
+    virtual G4VPhysicalVolume* Construct();
+    virtual void ConstructSDandField();
+
+     
+  private:
+    // methods
+    //
+    void DefineMaterials();
+    G4VPhysicalVolume* DefineVolumes();
+  
+    // data members
+    //
+    static G4ThreadLocal G4GlobalMagFieldMessenger*  fMagFieldMessenger; 
+                                      // magnetic field messenger
+	G4double fReduction;
+	G4int fNNested;
+    
+    G4bool  fCheckOverlaps; // option to activate checking of volumes overlaps
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

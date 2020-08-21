@@ -1,10 +1,12 @@
 import os,pdb,argparse,sys
+
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from os import system
 import h5py,csv,pickle
 import json
+from sklearn.model_selection import train_test_split
 
 import tensorflow as tf
 tf.random.set_seed(123)
@@ -24,8 +26,6 @@ if gpus:
 from tensorflow.keras.optimizers import *
 from tensorflow.keras.callbacks import EarlyStopping,LearningRateScheduler,TensorBoard
 
-from sklearn.model_selection import train_test_split
-
 from models import *
 from loadData import *
 from plotUtils import Plot,plotTrainingMetrics
@@ -33,9 +33,9 @@ from plotUtils import Plot,plotTrainingMetrics
 import config
 
 
-def logConfiguration(dictionary):
+def logConfiguration(dictionary, modelName=''):
     log = json.dumps(dictionary)
-    f = open('data/modelConfig_'+config.settings['Timestamp']+'.json','w')
+    f = open('data/modelConfig_'+modelName+'.json','w')
     f.write(log)
     f.close()
 
@@ -69,40 +69,54 @@ parser.add_argument('--plots', help='Produce sanity plots.', default=False, acti
 parser.add_argument('--model', help='Use a previously trained and saved MLP model.', default=None, required=False)
 parser.add_argument('--test', help='Model testing environment. Do not save.', default=False, action='store_true')
 parser.add_argument('--distribute', help='Enable distributed training on available GPUs.', default=False, action='store_true')
+parser.add_argument('--modelName', help='Name you want to use to identify a model.', required=False, default=None)
+parser.add_argument('--useTimestamp', help='Use timestamp to identify models.', default=False, action='store_true')
 
 if __name__ == '__main__':
 
     # parse the arguments
     args = parser.parse_args()
     if args.model is not None and args.trainData is not None: sys.exit("You can't load a pre-trained '--model' and '--trainData' at the same time!")
+    if args.useTimestamp and args.modelName is None: sys.exit("In order to use '--useTimestamp' you need to specify '--modelName' as well.")
+
+    # create distributed strategy
+    if args.distribute: 
+        strategy = tf.distribute.MirroredStrategy()
+        availableGPUs = int(len(gpus))
+    else:
+        availableGPUs = 1
 
     if args.trainValData:
-      trainValData = args.trainValData.replace("\"", "")
-      print(trainValData)
-      dataX, dataY = getG4Arrays(trainValData)
-      trainX, valX, trainY, valY = train_test_split(dataX, dataY, test_size=args.valFrac, random_state=42)
+        trainValDataFiles = glob.glob(args.trainValData.replace("\"", ""))
+        nValFiles = int(args.valFrac*len(trainValDataFiles))
+        print(f'Using the first {nValFiles} files for validation out of {len(trainValDataFiles)} total files.')
+        valFiles = trainValDataFiles[:nValFiles]
+        trainFiles = trainValDataFiles[nValFiles:]
+        trainDataset = getG4Datasets_dataAPI(trainFiles, batch_size=config.settings['Batch']*availableGPUs)
     else:
-      # load the validation data, which are needed either you train or not
-      valX, valY  = getG4Arrays(args.validationData)
-      
-    valDataset = getDatasets(valX, valY)
+        # or load just the validation data, which are needed either you train or not
+        valFiles = glob.glob(args.validationData)
+        valX, valY = getG4Arrays(valFiles)
+        valDataset = getDatasets(valX, valY)
+
+    # save model and print learning rate. Time stamp will be used regarless of useTimestamp option if no model name is given.
+    if args.modelName is None:
+        modelName = config.settings['Timestamp']
+    else:
+        modelName = args.modelName
+        if args.useTimestamp:
+            modelName = modelName+"_"+config.settings['Timestamp']
 
     # create model & train it
     if args.model is None:
 
-        # create distributed strategy
-        if args.distribute: 
-            strategy = tf.distribute.MirroredStrategy()
-            availableGPUs = int(len(gpus))
-        else:
-            availableGPUs = 1
-
-        # get some data to train & validate on
-        # load everything in memory in advance
-        # trainX, trainY  = getG4Arrays(args.trainData)
-        # trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch']*availableGPUs)
-        # or load as you train
-        trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
+        # if training data are not loaded, do it now
+        if args.trainValData is None:
+            # load everything in memory in advance
+            # trainX, trainY  = getG4Arrays(args.trainData)
+            # trainDataset = getDatasets(trainX, trainY, batch_size=config.settings['Batch']*availableGPUs)
+            # or load as you train
+            trainDataset = getG4Datasets_dataAPI(args.trainData, batch_size=config.settings['Batch']*availableGPUs)
 
         # get the optimizer
         myOptimizer = eval(config.settings['Optimizer']+'('+
@@ -128,7 +142,7 @@ if __name__ == '__main__':
         callbacks_list = [
             # EarlyStopping(monitor='val_mae', min_delta=0.001, patience=8, restore_best_weights=True)
             LearningRateScheduler(oneCycleFunc),
-            TensorBoard(log_dir='data/logs/'+config.settings['Timestamp'], histogram_freq=1)
+            TensorBoard(log_dir='data/logs/'+modelName, histogram_freq=1)
             ]
 
         # fit model
@@ -136,12 +150,11 @@ if __name__ == '__main__':
                                 epochs=config.settings['Epochs'],
                                 validation_data=valDataset,
                                 callbacks=callbacks_list)
-
-        # save model and print learning rate
-        if not args.test: 
-            mlp_model.save('data/mlp_model_'+config.settings['Timestamp']+'.h5')
-            print("Trained model saved! Timestamp:", config.settings['Timestamp'])
-            logConfiguration(config.settings)
+            
+        if not args.test:
+            mlp_model.save('data/mlp_model_'+modelName+'.h5')
+            print("Trained model saved! Timestamp:", modelName)
+            logConfiguration(config.settings, modelName)
             print("Configuration logged!")
 
     # load MLP model
@@ -172,11 +185,11 @@ if __name__ == '__main__':
 
     # plot
     if args.plots: 
-        validationPlots = Plot('validation', config.settings['Timestamp'], truth=valY, prediction=pred_valY)
+        validationPlots = Plot('validation', modelName, truth=valY, prediction=pred_valY)
         validationPlots.plotPerformance()
         # validationPlots.plotInputs()
-        # trainPlots = Plot('training', config.settings['Timestamp'], inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
+        # trainPlots = Plot('training', modelName, inputFeatures=trainX, truth=trainY, prediction=pred_trainY)
         # trainPlots.plotInputs()
         # trainPlots.plotPerformance()
-    
+
     print("Done!")

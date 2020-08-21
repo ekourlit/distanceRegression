@@ -24,40 +24,59 @@
 // ********************************************************************
 //
 // 
-/// \file B4PrimaryGeneratorAction.hh
-/// \brief Definition of the B4PrimaryGeneratorAction class
+/// \file SphereDetectorConstruction.hh
+/// \brief Definition of the SphereDetectorConstruction class
 
-#ifndef B4PrimaryGeneratorAction_h
-#define B4PrimaryGeneratorAction_h 1
+#ifndef SphereDetectorConstruction_h
+#define SphereDetectorConstruction_h 1
 
-#include "G4VUserPrimaryGeneratorAction.hh"
+#include "G4VUserDetectorConstruction.hh"
+#include "B4DetectorConstruction.hh"
 #include "globals.hh"
 
-class G4ParticleGun;
-class G4Event;
+class G4VPhysicalVolume;
+class G4GlobalMagFieldMessenger;
 
-/// The primary generator action class with particle gum.
+/// Detector construction class to define materials and geometry.
+/// The calorimeter is a box made of a given number of layers. A layer consists
+/// of an absorber plate and of a detection gap. The layer is replicated.
 ///
-/// It defines a single particle which hits the calorimeter 
-/// perpendicular to the input face. The type of the particle
-/// can be changed via the G4 build-in commands of G4ParticleGun class 
-/// (see the macros provided with this example).
+/// Four parameters define the geometry of the calorimeter :
+///
+/// - the thickness of an absorber plate,
+/// - the thickness of a gap,
+/// - the number of layers,
+/// - the transverse size of the calorimeter (the input face is a square).
+///
+/// In addition a transverse uniform magnetic field is defined 
+/// via G4GlobalMagFieldMessenger class.
 
-class B4PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
+class SphereDetectorConstruction : public B4DetectorConstruction
 {
-public:
-  B4PrimaryGeneratorAction();    
-  virtual ~B4PrimaryGeneratorAction();
+  public:
+	SphereDetectorConstruction();
+    virtual ~SphereDetectorConstruction();
 
-  virtual void GeneratePrimaries(G4Event* event);
+  public:
+    virtual G4VPhysicalVolume* Construct();
+    virtual void ConstructSDandField();
+
+     
+  private:
+    // methods
+    //
+    void DefineMaterials();
+    G4VPhysicalVolume* DefineVolumes();
   
-  // set methods
-  void SetRandomFlag(G4bool value);
+    // data members
+    //
+    static G4ThreadLocal G4GlobalMagFieldMessenger*  fMagFieldMessenger; 
+                                      // magnetic field messenger
 
-private:
-  G4ParticleGun*  fParticleGun; // G4 particle gun
+    G4bool  fCheckOverlaps; // option to activate checking of volumes overlaps
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 #endif
+
