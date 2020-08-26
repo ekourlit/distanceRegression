@@ -206,8 +206,17 @@ G4VPhysicalVolume* NestedTwistedTrapDetectorConstruction::DefineVolumes()
 			              "MyCode0002", FatalException, msg);
 		  }
 	  }
+  G4ThreeVector pMin, pMax;
+  calorLV->GetSolid()->BoundingLimits(pMin, pMax);
+  fXMin = pMin.x();
+  fYMin = pMin.y();
+  fZMin = pMin.z();
 
-  twistAng = 30;
+  fXMax = pMax.x();
+  fYMax = pMax.y();
+  fZMax = pMax.z();
+  
+  //twistAng = 30;
   auto motherVol = calorLV;
   for (int nestI = 0; nestI < fNNested; nestI++ ){
 	  std::string trapName = "InnerCalorimeterTwistedTrap"+std::to_string(nestI);
@@ -216,7 +225,7 @@ G4VPhysicalVolume* NestedTwistedTrapDetectorConstruction::DefineVolumes()
 	  pDx1 *= fReduction;
 	  pDx2 *= fReduction;
 	  pDy *= fReduction;
-	  pDz *= fReduction;
+	  //pDz *= fReduction;
 
 	  auto InnerCalorimeterS
 		  = new G4TwistedTrap(trapName,

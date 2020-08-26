@@ -62,7 +62,6 @@ class NestedTwistedTrapDetectorConstruction : public B4DetectorConstruction
     virtual G4VPhysicalVolume* Construct();
     virtual void ConstructSDandField();
 
-     
   private:
     // methods
     //
@@ -74,6 +73,7 @@ class NestedTwistedTrapDetectorConstruction : public B4DetectorConstruction
     static G4ThreadLocal G4GlobalMagFieldMessenger*  fMagFieldMessenger; 
                                       // magnetic field messenger
 	G4double fReduction;
+	
 	G4int fNNested;
     
     G4bool  fCheckOverlaps; // option to activate checking of volumes overlaps

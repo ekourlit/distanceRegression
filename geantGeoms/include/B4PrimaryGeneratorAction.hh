@@ -32,6 +32,7 @@
 
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "globals.hh"
+#include "B4DetectorConstruction.hh"
 
 class G4ParticleGun;
 class G4Event;
@@ -46,7 +47,7 @@ class G4Event;
 class B4PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
 {
 public:
-  B4PrimaryGeneratorAction();    
+  B4PrimaryGeneratorAction(B4DetectorConstruction* fDetConstruction);    
   virtual ~B4PrimaryGeneratorAction();
 
   virtual void GeneratePrimaries(G4Event* event);
@@ -55,7 +56,8 @@ public:
   void SetRandomFlag(G4bool value);
 
 private:
-  G4ParticleGun*  fParticleGun; // G4 particle gun
+	B4DetectorConstruction* fDetConstruction; // Detector, needed for min and max coordinates.
+	G4ParticleGun*  fParticleGun; // G4 particle gun
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

@@ -65,7 +65,7 @@ void B4aActionInitialization::BuildForMaster() const
 
 void B4aActionInitialization::Build() const
 {
-  SetUserAction(new B4PrimaryGeneratorAction);
+	SetUserAction(new B4PrimaryGeneratorAction(fDetConstruction));
   auto runAction = new B4RunAction(fFlatL, fNBins, fMinValHist, fMaxValHist, fAllowedDiff, fSeed, fFileName);
   SetUserAction(runAction);
   auto eventAction = new B4aEventAction;

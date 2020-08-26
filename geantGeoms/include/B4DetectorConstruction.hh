@@ -55,7 +55,15 @@ class B4DetectorConstruction : public G4VUserDetectorConstruction
   public:
 	B4DetectorConstruction();
     virtual ~B4DetectorConstruction();
-     
+    
+    float fXMin;
+	float fYMin;
+	float fZMin;
+	
+	float fXMax;
+	float fYMax;
+	float fZMax;
+	
 private:
     G4bool  fCheckOverlaps; // option to activate checking of volumes overlaps
 };

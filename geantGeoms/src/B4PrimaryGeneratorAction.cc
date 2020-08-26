@@ -43,8 +43,9 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4PrimaryGeneratorAction::B4PrimaryGeneratorAction()
+B4PrimaryGeneratorAction::B4PrimaryGeneratorAction(B4DetectorConstruction *detConstruction)
 	: G4VUserPrimaryGeneratorAction(),
+	  fDetConstruction(detConstruction),
 	  fParticleGun(nullptr)
 {
 	G4int nofParticles = 1;
@@ -68,13 +69,16 @@ B4PrimaryGeneratorAction::~B4PrimaryGeneratorAction()
 
 void B4PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
-	float fXMin = -1.41421;
-	float fXMax = 1.41421; 
-	float fYMin = -1.41421;
-	float fYMax = 1.41421; 
-	float fZMin = -1;
-	float fZMax = 1;
-	
+	float safetyFactor = 1.0;
+	float fXMin = fDetConstruction->fXMin*safetyFactor;
+	float fXMax = fDetConstruction->fXMax*safetyFactor; 
+	float fYMin = fDetConstruction->fYMin*safetyFactor;
+	float fYMax = fDetConstruction->fYMax*safetyFactor; 
+	float fZMin = fDetConstruction->fZMin*safetyFactor;
+	float fZMax = fDetConstruction->fZMax*safetyFactor;
+
+	//	std::cout << "Extent of volume (xmin, xmax, ymin, ymax, zmin, zmax): " << fXMin << ", " << fXMax << ", " << fYMin <<  ", " << fYMax << ", " << fZMin << ", "  << fZMax << "\n";
+
 	float xLength = fabs(fXMax-fXMin);
 	float yLength = fabs(fYMax-fYMin);
 	float zLength = fabs(fZMax-fZMin);
