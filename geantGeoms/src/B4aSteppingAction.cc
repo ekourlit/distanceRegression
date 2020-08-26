@@ -77,18 +77,18 @@ void B4aSteppingAction::UserSteppingAction(const G4Step* step)
 	G4double startY = prepoint->GetPosition().y();
 	G4double startZ = prepoint->GetPosition().z();
 
-	//G4double safety = prepoint->GetSafety();
-	//std::cout << "Safety is " << safety << " step length " << stepLength << "\n";
-
 	G4double dirX = momentumDirection.x();
 	G4double dirY = momentumDirection.y();
 	G4double dirZ = momentumDirection.z();
-	//G4ThreeVector pMin, pMax;
-	// twistedTrapSolid->BoundingLimits(pMin, pMax);
-	// G4cout << "Extent of volume: " << pMin << " " << pMax << G4endl;
 	
 	if (twistedTrapSolid->Inside(prepoint->GetPosition()) == kInside){
-
+		// do only one step
+		G4Track *track = step->GetTrack();
+		int stepNum = track->GetCurrentStepNumber();
+		if (stepNum > 1){
+			track->SetTrackStatus(fStopAndKill);
+			return;
+		}
 		if (fRunAction->fFlatL){
 			auto lengthHist = analysisManager->GetH1(0);
 			// Check that all bins have the minimum yield;
@@ -146,12 +146,6 @@ void B4aSteppingAction::UserSteppingAction(const G4Step* step)
 			analysisManager->FillNtupleDColumn(6, stepLength);
 			analysisManager->AddNtupleRow();
 	
-		}
-		// do only one step
-		G4Track *track = step->GetTrack();
-		int stepNum = track->GetCurrentStepNumber();
-		if (stepNum > 0){
-			track->SetTrackStatus(fStopAndKill);
 		}
 	} else {
 		// std::cout << "Not in twisted trap volume" << "\n";

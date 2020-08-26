@@ -218,7 +218,7 @@ G4VPhysicalVolume* NestedTwistedTrapDetectorConstruction::DefineVolumes()
   
   //twistAng = 30;
   auto motherVol = calorLV;
-  for (int nestI = 0; nestI < fNNested; nestI++ ){
+  for (int nestI = 1; nestI < fNNested; nestI++ ){
 	  std::string trapName = "InnerCalorimeterTwistedTrap"+std::to_string(nestI);
 	  std::string logicalTrapName = "InnerCalorimeter"+std::to_string(nestI);
 

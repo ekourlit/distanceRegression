@@ -13,6 +13,7 @@ do
 	else
 		callgrindOut=$7"_nNested"$6"_seed"$seed".callgrind"
 		valgrind --tool=callgrind --callgrind-out-file=$callgrindOut $baseRunDir/geantinoMap -m $baseRunDir/$5 -s $seed --nNested $6 -o $7 >& $workDir/logs/valgrind_log_nNest${6}_seed${seed} &
+		{ time $baseRunDir/geantinoMap -m $baseRunDir/$5 -s $seed --nNested $6 -o $7 ; } 2> $workDir/logs/time_log_nNest${6}_seed${seed} &
 	fi
 done
 wait

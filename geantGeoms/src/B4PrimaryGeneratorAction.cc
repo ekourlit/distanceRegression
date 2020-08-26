@@ -77,7 +77,7 @@ void B4PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	float fZMin = fDetConstruction->fZMin*safetyFactor;
 	float fZMax = fDetConstruction->fZMax*safetyFactor;
 
-	//	std::cout << "Extent of volume (xmin, xmax, ymin, ymax, zmin, zmax): " << fXMin << ", " << fXMax << ", " << fYMin <<  ", " << fYMax << ", " << fZMin << ", "  << fZMax << "\n";
+	//std::cout << "Extent of volume (xmin, xmax, ymin, ymax, zmin, zmax): " << fXMin << ", " << fXMax << ", " << fYMin <<  ", " << fYMax << ", " << fZMin << ", "  << fZMax << "\n";
 
 	float xLength = fabs(fXMax-fXMin);
 	float yLength = fabs(fYMax-fYMin);

@@ -170,7 +170,7 @@ if args.submit:
             process = subprocess.Popen(f'sbatch {trainSubmitFName}', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 
 if args.valgrind:
-    nEvents = 1000
+    nEvents = 100000
     valgrindMacFName = 'valgrind.mac'
     writeMacro(valgrindMacFName, nEvents)
     for nNest in range(1,args.nNesting+1):
