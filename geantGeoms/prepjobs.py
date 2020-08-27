@@ -176,3 +176,4 @@ if args.valgrind:
     for nNest in range(1,args.nNesting+1):
         outFName = f'valgrind_{nNest}'
         (out, err, totalTime) = runGeantinoMap(valgrindMacFName, nNest, outFName, args.workdir, args.basedir, valgrind=True, comm=False)
+        
